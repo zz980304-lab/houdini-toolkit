@@ -196,17 +196,27 @@ def choose_modules(manifest, installed_versions):
         labels.append("%s  [v%s]%s" % (m.get("name", m["id"]), m["version"], tag))
 
     defaults = tuple(i for i, m in enumerate(mods) if m.get("default"))
-    sel = hou.ui.selectFromList(
-        labels,
-        message="选择要安装 / 更新的模块",
-        title="MyToolkit %s" % manifest.get("version", ""),
-        multiple_select=True,
-        default_choices=defaults,
-        clear_on_cancel=True,
-    )
+    # 注意：selectFromList 没有 multiple_select 参数（多选是默认行为，
+    # 由 exclusive=False 控制）。别按直觉加，20.5 会直接抛 TypeError。
+    # 这里用最保守的参数集，老版本新版本都认；万一还报参数错就再退一步。
+    try:
+        sel = hou.ui.selectFromList(
+            labels,
+            message="选择要安装 / 更新的模块",
+            title="MyToolkit %s" % manifest.get("version", ""),
+            default_choices=defaults,
+            exclusive=False,
+            clear_on_cancel=True,
+        )
+    except TypeError:
+        sel = hou.ui.selectFromList(labels)
+
     if not sel:
         return None
-    return [mods[i]["id"] for i in sel]
+    picked = [i for i in sel if 0 <= i < len(mods)]
+    if not picked:
+        return None
+    return [mods[i]["id"] for i in picked]
 
 
 def show_changelog(manifest):
