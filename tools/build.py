@@ -150,6 +150,49 @@ def part_name(mid, ver, idx, total):
     return "%s-%s.p%d.zip" % (mid, ver, idx + 1)
 
 
+def write_shelf_index(cfg, manifest):
+    """生成 Houdini「Download Shelf」认的清单（JSON 数组）。
+
+    格式照 www.sidefx.com/exchange/json/list.php?type=Shelf 抄的：
+    每项要有 name / author / description / fileURL / thumbnailURL /
+    lastModified / version，Houdini 列表里就是按这些字段显示的。
+    """
+    si = cfg.get("shelf_index")
+    if not si:
+        return None
+
+    base = str(cfg.get("base_url", "")).rstrip("/")
+    target = str(si.get("target", "bootstrap.shelf")).lstrip("/")
+    thumb = str(si.get("thumbnail", "icon.png")).lstrip("/")
+    ver = str(manifest.get("version", "1.0.0"))
+
+    try:
+        major = int(ver.split(".")[0])
+    except Exception:
+        major = 1
+
+    desc = si.get("description", "")
+    if desc:
+        desc = desc.rstrip() + "\n\n当前版本 v%s（更新于 %s）" % (
+            ver, manifest.get("updated", "").replace("T", " ")[:16])
+
+    entry = {
+        "author": si.get("author", ""),
+        "description": desc,
+        "fileURL": "%s/%s" % (base, target),
+        "lastModified": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "name": si.get("name", manifest.get("toolkit", "Toolkit")),
+        "thumbnailURL": "%s/%s" % (base, thumb),
+        "version": major,
+    }
+
+    out = ROOT / str(si.get("file", "shelves.json"))
+    out.write_text(json.dumps([entry], indent=4, ensure_ascii=False) + "\n",
+                   encoding="utf-8")
+    log("已写入 %s（Download Shelf 用这个地址）" % out.name)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--all", action="store_true", help="强制重建所有模块")
@@ -287,6 +330,7 @@ def main():
         encoding="utf-8",
     )
     log("已写入 manifest.json")
+    write_shelf_index(cfg, manifest)
     log("模块：")
     for m in new_modules:
         n = len(m["parts"])

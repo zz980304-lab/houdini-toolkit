@@ -2,6 +2,15 @@
     "zip_root": "MyToolkit",
     "max_part_mb": 20,
     "min_houdini": "19.5",
+    "base_url": "https://houdini-toolkit.pages.dev",
+    "shelf_index": {
+        "file": "shelves.json",
+        "name": "阿龙工具",
+        "author": "阿龙",
+        "description": "一键安装 / 更新的 Houdini 工具集。下载后工具架里会出现「阿龙工具」，点按钮即可装齐工具架、Python 模块与预设，之后每次点击自动检查更新。",
+        "thumbnail": "icon.png",
+        "target": "bootstrap.shelf"
+    },
     "modules": [
         {
             "id": "core",
