@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<shelfDocument>
+  <!-- This file contains definitions of shelves, toolbars, and tools.
+ It should not be hand-edited when it is being used by the application.
+ Note, that two definitions of the same element are not allowed in
+ a single file. -->
+
+  <toolshelf name="My_Tool" label="我的工具">
+    <memberTool name="Axiom_creak"/>
+    <memberTool name="Open_Path"/>
+    <memberTool name="Smooth_vdb"/>
+    <memberTool name="ABC_Import"/>
+    <memberTool name="Hip_Packer_Open"/>
+    <memberTool name="Sync_Box_Bundles"/>
+  </toolshelf>
+
+  <tool name="Axiom_creak" label="Axiom 破解" icon="opdef:/Sop/axiom_solver::3.2?IconImage">
+    <script scriptType="python"><![CDATA[import os
+file = 'Z:/Houdini_payh/Axiom 3.0.117 for Houdini (19-19.5)/Axiom 3 for Houdini licenseServer2.0.117/licenseServer2.0.117.exe'
+os.startfile(file)]]></script>
+  </tool>
+
+  <tool name="Smooth_vdb" label="Smooth_vdb" icon="DOP_sopsolver-2.0">
+    <script scriptType="python"><![CDATA[import hou
+plan = hou.ui.paneTabOfType(hou.paneTabType.NetworkEditor)
+node = plan.pwd()
+path = node.path()
+
+res =  float(hou.ui.readInput('精度')[1])
+
+sopsolver = node.createNode("sopsolver::2.0","vdb_smooth_vel")
+sopsolver.parm("doinvoke").set(1)
+sopsolver.parm("primaryinputname").set("data")
+
+
+compile_begin = sopsolver.createNode("compile_begin","compile_begin1")
+compile_begin.setPosition([0,0.0945])
+compile_end = sopsolver.createNode("compile_end","compile_end1")
+compile_end.setPosition([0,-10])
+
+child = sopsolver.children()
+for i in child:
+    name = i.name()
+    if name == "impacts" or name == "feedbacks" or name == "relationship_geometry":
+        i.destroy()
+    if name == "OUT":
+        i.setPosition([0,-11])
+        i.setInput(0,compile_end,0)
+    if name == "dop_geometry":
+        dop = i
+
+
+
+block_path = '''../compile_end1'''
+input_name = "data"
+compile_begin.parm("blockpath").set(block_path)    
+compile_begin.parm("name").set(input_name)   
+
+
+vdb1 = sopsolver.createNode("vdb","vdb1")
+vdb1.setPosition([4.6,-1.31])
+vdb1.parm("name1").set("density")
+vdb1.parm("voxelsize").set(res)
+vdb2 = sopsolver.createNode("vdb","vdb2")
+vdb2.setPosition([7.16,-1.32])
+vdb2.parm("name1").set("v")
+vdb2.parm("type1").set(3)
+vdb2.parm("voxelsize").set(vdb1.parm("voxelsize"))
+attdel = sopsolver.createNode("attribdelete","attribdelete1")
+attdel.setPosition([1.3,-1.28])
+res1 = sopsolver.createNode("volumerasterizeparticles","volumerasterizeparticles1")
+res1.setPosition([2.19,-3.76])
+res1.parm("particlescale").set(vdb1.parm("voxelsize"))
+res2 = sopsolver.createNode("volumerasterizeparticles","volumerasterizeparticles2")
+res2.setPosition([6.019,-3.76])
+res2.parm("particlescale").set(vdb1.parm("voxelsize"))
+vex_node = sopsolver.createNode("attribwrangle","blend_vel")
+vex_node.setPosition([0.132,-6.879])
+
+attdel.parm("ptdel").set("v")
+attdel.parm("negate").set(1)
+
+
+code = '''@ptdensity = volumesample(1,0,@P);
+
+float ratio = fit(@nage,0.5,1,0.5,0.1);
+
+@v = lerp(@v,volumesamplev(2,0,@P),ratio);
+'''
+vex_node.parm("snippet").set(code)
+
+
+
+
+
+
+compile_end.setInput(0,vex_node,0)
+vex_node.setInput(0,compile_begin,0)
+vex_node.setInput(1,res1,0)
+vex_node.setInput(2,res2,0)
+res1.setInput(0,vdb1,0)
+res1.setInput(1,attdel,0)
+res2.setInput(0,vdb2,0)
+res2.setInput(1,attdel,0)
+res2.setInput(1,attdel,0)
+attdel.setInput(0,compile_begin,0)
+compile_begin.setInput(0,dop,0)
+
+
+plan.cd(path)
+]]></script>
+  </tool>
+
+  <tool name="Open_Path" label="打开目录" icon="SOP_file">
+    <script scriptType="python"><![CDATA[import os
+import hou
+
+path_file = hou.hipFile.path()
+file = hou.hipFile.basename()
+path = path_file.replace(file,"")
+path = path.replace("/","\\")
+
+#print(path)
+os.startfile(path)]]></script>
+  </tool>
+
+  <tool name="ABC_Import" label="批量导入ABC" icon="SOP_alembic">
+    <script scriptType="python"><![CDATA[import hou
+import os
+evl = hou.getenv('HIP')
+folder = hou.ui.selectFile(start_directory=evl,title='ABC Dir',file_type=hou.fileType.Directory)
+
+
+try:
+    list = os.listdir(folder)
+    abc_list = [x for x in list if x.split('.')[-1] == 'abc']
+except:
+    abc_list = []
+    print('未选择路径，或并不在GEO层级下')
+
+try:
+    folder = folder.replace(evl,'$HIP')
+except:
+    print('非工程底下的目录')
+    
+p = hou.ui.paneTabOfType(hou.paneTabType.NetworkEditor)
+p_node = p.pwd()
+
+try:
+  for i in abc_list:
+      name = i.split('.')[0]
+      abc = p_node.createNode('alembic',name+'Read')
+      null = p_node.createNode('null',name)
+      file_path = folder+i
+      null.setInput(0,abc,0)
+      abc.parm('fileName').set(file_path)
+
+except:
+    print('未选择路径，或并不在GEO层级下')
+
+
+
+
+
+
+
+p_node.layoutChildren()
+
+#print(p_node)]]></script>
+  </tool>
+
+  <tool name="Hip_Packer_Open" label="工程保存工具" icon="DESKTOP_hip">
+    <script scriptType="python"><![CDATA[import os
+import sys
+
+# 按 HOUDINI_PATH 相对查找工具目录，不写死盘符：换机器 / 换盘都能用。
+# 工具本体在 <任意 HOUDINI_PATH 目录>/toolbar/hip_packer/hip_packer/
+def _find_tool():
+    try:
+        import hou
+        roots = hou.getenv("HOUDINI_PATH") or ""
+    except Exception:
+        roots = ""
+    roots = roots or os.environ.get("HOUDINI_PATH", "")
+    for root in roots.split(os.pathsep):
+        for rel in ("toolbar/hip_packer", "python3.11libs"):   # 新位置 / 旧位置
+            cand = os.path.join(root, rel)
+            if os.path.isfile(os.path.join(cand, "hip_packer", "__init__.py")):
+                return cand
+    return None
+
+_root = _find_tool()
+if _root and _root not in sys.path:
+    sys.path.append(_root)
+
+# Houdini 的 Python 会话是常驻的：改了磁盘上的代码，它不会自己重新读，
+# 直接 import 拿到的还是内存里那份旧的（表现就是「点了没反应 / 改了没生效」）。
+# 所以每次点按钮先把旧模块踢掉，保证用的是最新版本。
+try:
+    import hip_packer
+    hip_packer.reload_modules()      # 会顺带关掉旧窗口，避免新旧两份打架
+except Exception:
+    for _k in [k for k in sys.modules
+               if k == "hip_packer" or k.startswith("hip_packer.")]:
+        sys.modules.pop(_k, None)
+
+from hip_packer import show
+show()]]></script>
+  </tool>
+
+  <tool name="Sync_Box_Bundles" label="同步盒子集合/接管渲染器" icon="SOP_box">
+    <helpText><![CDATA[一键做三件事，打印对照表：
+
+1) 重新加载引擎并挂上同步（盒子一变集合就跟着变；改了代码也靠这一步生效）
+2) 同步所有网络盒 -> 同名集合
+3) 给**全场景所有层级**的渲染节点装上 / 更新「渲染前脚本」
+   （不限 /out：/obj、/obj/geo1 下建的渲染器一样会装）
+
+装完之后：
+  · 渲染器参数里你写的还是 @render（能改名、能删掉断开、能换成 @light）
+  · 点渲染的那一刻，脚本把 @render 临时展开成真实路径
+  · 渲完自动还原回 @render
+  · 脚本写在 ROP 自己的 Pre/Post-Render Script 参数里，跟着 .hip 保存，
+    工程发给别人、对方没装任何工具也能正常用
+
+什么时候点：新建了渲染器、改了盒子想确认、或我更新过代码之后。]]></helpText>
+    <script scriptType="python"><![CDATA[import os
+import sys
+import hou
+
+
+def _load():
+    for _k in [k for k in sys.modules if k == "netbox_bundles"]:
+        sys.modules.pop(_k, None)
+    try:
+        import netbox_bundles
+        return netbox_bundles
+    except Exception:
+        pass
+    roots = hou.getenv("HOUDINI_PATH") or os.environ.get("HOUDINI_PATH", "")
+    for _root in roots.split(os.pathsep):
+        _cand = os.path.join(_root, "python3.11libs")
+        if os.path.isfile(os.path.join(_cand, "netbox_bundles.py")):
+            sys.path.append(_cand)
+            break
+    import netbox_bundles
+    return netbox_bundles
+
+
+nb = _load()
+nb.sync_all_msg()]]></script>
+  </tool>
+
+</shelfDocument>

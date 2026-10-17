@@ -1,1 +1,25 @@
-# placeholder
+{
+    "toolkit": "MyToolkit",
+    "version": "1.0.0",
+    "updated": "2026-10-17T23:30:19+08:00",
+    "min_houdini": "19.5",
+    "changelog": [
+        "1.0.0 更新：核心工具（工具架 + Python + 预设） v1.0.0"
+    ],
+    "modules": [
+        {
+            "id": "core",
+            "name": "核心工具（工具架 + Python + 预设）",
+            "version": "1.0.0",
+            "default": true,
+            "content_hash": "512ed1ca5150016edd40eeaa8694f4ca5527a61549e01b6458956a7018a525d5",
+            "parts": [
+                {
+                    "url": "dist/core-1.0.0.zip",
+                    "size": 18685,
+                    "sha256": "83295d6078ebebafcdd4b875a625f55aed1467d232cc3717b309694861a6c412"
+                }
+            ]
+        }
+    ]
+}

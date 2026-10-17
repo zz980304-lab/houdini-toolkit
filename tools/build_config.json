@@ -1,0 +1,40 @@
+{
+    "zip_root": "MyToolkit",
+    "max_part_mb": 20,
+    "min_houdini": "19.5",
+    "modules": [
+        {
+            "id": "core",
+            "name": "核心工具（工具架 + Python + 预设）",
+            "default": true,
+            "enabled": true,
+            "sources": [
+                { "src": "src/toolbar", "dst": "toolbar" },
+                { "src": "src/python3.11libs", "dst": "python3.11libs",
+                  "exclude": ["__pycache__", "*.pyc"] },
+                { "src": "src/presets", "dst": "presets" }
+            ]
+        },
+        {
+            "id": "otls-misc",
+            "name": "自收集 HDA / 第三方节点（不含 ql 库）",
+            "default": true,
+            "enabled": false,
+            "sources": [
+                { "src": "N:/Houdini_path/otls", "dst": "otls",
+                  "include": ["*.hda", "*.otl"],
+                  "exclude": ["*_ql_*", "backup"] }
+            ]
+        },
+        {
+            "id": "otls-ql",
+            "name": "ql 节点库（254 个）",
+            "default": false,
+            "enabled": false,
+            "sources": [
+                { "src": "N:/Houdini_path/otls", "dst": "otls",
+                  "include": ["*_ql_*"] }
+            ]
+        }
+    ]
+}
