@@ -161,12 +161,12 @@ def write_shelf_index(cfg, manifest):
     if not si:
         return None
 
-    base = str(cfg.get("base_url", "")).rstrip("/")
+    # Download Shelf 下载文件用的是 urllib（UA = Python-urllib/3.11），
+    # Cloudflare Pages 对这个 UA 直接返回 403，所以清单里的链接指向镜像站（GitHub Pages）。
+    base = str(si.get("base_url") or cfg.get("base_url", "")).rstrip("/")
     target = str(si.get("target", "bootstrap.shelf")).lstrip("/")
-    # thumbnail 留空 = 不写 thumbnailURL 字段。
-    # Houdini 20.5 的 assetdownload.py 在 Windows 上下载缩略图必然失败
-    # （mkstemp 的临时文件还在占用，又把下载结果 move 到同一路径），
-    # 失败后 os.remove 抛 PermissionError 弹错框。不写这个字段就不会触发。
+    # thumbnail 必须给：字段缺失时 Houdini 拿空串去下载，失败后 os.remove 抛
+    # PermissionError(WinError 32) 弹框（assetdownload.downloadAssetThumbnail）。
     thumb = str(si.get("thumbnail") or "").lstrip("/")
     ver = str(manifest.get("version", "1.0.0"))
 
