@@ -187,8 +187,12 @@ def choose_modules(manifest, installed_versions):
     labels = []
     for m in mods:
         cur = installed_versions.get(m["id"])
-        tag = ("  已装 v%s → v%s" % (cur, m["version"])) if cur and cur != m["version"] \
-            else ("  v%s" % m["version"] if not cur else "  已是最新")
+        if cur and cur != m["version"]:
+            tag = "   已装 v%s → v%s" % (cur, m["version"])
+        elif cur:
+            tag = "   已是最新"
+        else:
+            tag = "   未安装"
         labels.append("%s  [v%s]%s" % (m.get("name", m["id"]), m["version"], tag))
 
     defaults = tuple(i for i, m in enumerate(mods) if m.get("default"))
