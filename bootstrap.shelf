@@ -1,7 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="ISO-8859-1"?>
 <shelfDocument>
   <!-- 自动生成，请勿手改。源文件：installer/installer.py（改完跑 tools/make_shelf.py） -->
-  <toolshelf name="mytoolkit_bootstrap" label="工具集">
+  <toolshelf name="mytoolkit_bootstrap" label="阿龙工具">
     <memberTool name="mytoolkit_installer"/>
   </toolshelf>
 

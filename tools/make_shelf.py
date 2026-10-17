@@ -17,10 +17,13 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "installer" / "installer.py"
 OUT = ROOT / "bootstrap.shelf"
 
-SHELF_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
+# 编码声明必须是 ISO-8859-1，而文件实际按 UTF-8 写字节。
+# 这是 Houdini 自己的 shelf 文件惯例（内置 shelf 与用户自建 shelf 都这么写）：
+# 它按"一个字节一个字符"处理，声明成 UTF-8 反而会让中文 label 丢掉，显示成空的。
+SHELF_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
 <shelfDocument>
   <!-- 自动生成，请勿手改。源文件：installer/installer.py（改完跑 tools/make_shelf.py） -->
-  <toolshelf name="mytoolkit_bootstrap" label="工具集">
+  <toolshelf name="mytoolkit_bootstrap" label="阿龙工具">
     <memberTool name="mytoolkit_installer"/>
   </toolshelf>
 
