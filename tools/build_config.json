@@ -8,7 +8,8 @@
         "name": "阿龙工具",
         "author": "阿龙",
         "description": "一键安装 / 更新的 Houdini 工具集。下载后工具架里会出现「阿龙工具」，点按钮即可装齐工具架、Python 模块与预设，之后每次点击自动检查更新。",
-        "thumbnail": "icon.png",
+        "thumbnail": null,
+        "_thumbnail_note": "Houdini 20.5 的 assetdownload.downloadAssetThumbnail 在 Windows 上有 bug：mkstemp 建好临时文件后，又把下载结果 move 到同一路径，Windows 下必然失败并抛 PermissionError(WinError 32)。所以这里留空，Houdini 就不会去下载缩略图，也就不会弹错。icon.png 仍然保留，浏览器里可以用作展示。",
         "target": "bootstrap.shelf"
     },
     "modules": [

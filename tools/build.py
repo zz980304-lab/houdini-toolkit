@@ -163,7 +163,11 @@ def write_shelf_index(cfg, manifest):
 
     base = str(cfg.get("base_url", "")).rstrip("/")
     target = str(si.get("target", "bootstrap.shelf")).lstrip("/")
-    thumb = str(si.get("thumbnail", "icon.png")).lstrip("/")
+    # thumbnail 留空 = 不写 thumbnailURL 字段。
+    # Houdini 20.5 的 assetdownload.py 在 Windows 上下载缩略图必然失败
+    # （mkstemp 的临时文件还在占用，又把下载结果 move 到同一路径），
+    # 失败后 os.remove 抛 PermissionError 弹错框。不写这个字段就不会触发。
+    thumb = str(si.get("thumbnail") or "").lstrip("/")
     ver = str(manifest.get("version", "1.0.0"))
 
     try:
@@ -182,9 +186,10 @@ def write_shelf_index(cfg, manifest):
         "fileURL": "%s/%s" % (base, target),
         "lastModified": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "name": si.get("name", manifest.get("toolkit", "Toolkit")),
-        "thumbnailURL": "%s/%s" % (base, thumb),
         "version": major,
     }
+    if thumb:
+        entry["thumbnailURL"] = "%s/%s" % (base, thumb)
 
     out = ROOT / str(si.get("file", "shelves.json"))
     out.write_text(json.dumps([entry], indent=4, ensure_ascii=False) + "\n",
