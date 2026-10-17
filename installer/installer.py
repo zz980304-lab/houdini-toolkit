@@ -297,6 +297,46 @@ def backup_current():
     return dst
 
 
+def join_split_files(root):
+    """把 build.py 切碎的大文件拼回原样。
+
+    打包时单个文件超过单片上限（默认 20MB）会被切成
+    `xxx.hda.p000 / .p001 ...`，并在包根放一份 `.parts.json`
+    记录 `{"otls/xxx.hda": 5}`。这里按顺序拼回去再删掉片段。
+    """
+    tk = os.path.join(root, TOOLKIT_DIRNAME)
+    pj = os.path.join(tk, ".parts.json")
+    if not os.path.isfile(pj):
+        return 0
+    try:
+        with open(pj, "r", encoding="utf-8") as f:
+            mapping = json.load(f)
+    except Exception:
+        return 0
+
+    done = 0
+    for rel, count in mapping.items():
+        dst = os.path.join(tk, rel)
+        dstdir = os.path.dirname(dst)
+        if dstdir and not os.path.isdir(dstdir):
+            os.makedirs(dstdir)
+        try:
+            with open(dst, "wb") as out:
+                for i in range(int(count)):
+                    frag = os.path.join(tk, "%s.p%03d" % (rel, i))
+                    with open(frag, "rb") as f:
+                        out.write(f.read())
+                    os.remove(frag)
+            done += 1
+        except Exception:
+            pass
+    try:
+        os.remove(pj)
+    except Exception:
+        pass
+    return done
+
+
 def install_from(tmp_dir, module_files, installed, manifest, wanted_ids):
     """
     合并式安装：
@@ -323,6 +363,10 @@ def install_from(tmp_dir, module_files, installed, manifest, wanted_ids):
                     if top != TOOLKIT_DIRNAME:
                         continue          # 只接受 MyToolkit/ 前缀
                     z.extract(member, staging_root)
+
+    joined = join_split_files(staging_root)
+    if joined:
+        status("MyToolkit：已合并 %d 个大文件分片" % joined)
 
     backup_current()
 

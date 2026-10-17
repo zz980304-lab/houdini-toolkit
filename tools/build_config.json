@@ -14,6 +14,7 @@
         "_thumbnail_note": "必须给：字段缺失时 Houdini 会拿空字符串去下载，失败后清理临时文件又会抛 PermissionError(WinError 32)，照样弹框。指向 github.io 的图能正常下载。",
         "target": "bootstrap.shelf"
     },
+    "_sources_note": "每个 sources 里 N:/Houdini_path/... 排在前面 = 以 N 盘为唯一真相源；src/ 是仓库里的副本，只在 N 盘不在时兜底。改完 N 盘直接 build 就能生效，不用手工同步。",
     "modules": [
         {
             "id": "core",
@@ -21,7 +22,15 @@
             "default": true,
             "enabled": true,
             "sources": [
-                { "src": "src/toolbar", "dst": "toolbar" },
+                { "src": "N:/Houdini_path/toolbar", "dst": "toolbar",
+                  "include": ["*.shelf"],
+                  "exclude": ["backup", "downloads", "bootstrap.shelf"] },
+                { "src": "N:/Houdini_path/python3.11libs", "dst": "python3.11libs",
+                  "exclude": ["__pycache__", "*.pyc", "backup"] },
+                { "src": "N:/Houdini_path/presets", "dst": "presets",
+                  "exclude": ["backup"] },
+                { "src": "src/toolbar", "dst": "toolbar",
+                  "include": ["*.shelf"], "exclude": ["backup"] },
                 { "src": "src/python3.11libs", "dst": "python3.11libs",
                   "exclude": ["__pycache__", "*.pyc"] },
                 { "src": "src/presets", "dst": "presets" }
@@ -29,23 +38,33 @@
         },
         {
             "id": "otls-misc",
-            "name": "自收集 HDA / 第三方节点（不含 ql 库）",
+            "name": "自收集 HDA / 节点库（不含 ql 与 ffx 大包）",
             "default": true,
-            "enabled": false,
+            "enabled": true,
             "sources": [
                 { "src": "N:/Houdini_path/otls", "dst": "otls",
-                  "include": ["*.hda", "*.otl"],
-                  "exclude": ["*_ql_*", "backup"] }
+                  "include": ["*.hda", "*.otl", "*.hdalc", "*.otllc"],
+                  "exclude": ["*_ql_*", "backup", "ffx_collection_a_blackbox.hda"] }
+            ]
+        },
+        {
+            "id": "otls-ffx",
+            "name": "ffx 节点集（91MB 黑盒包，装一次基本不动）",
+            "default": false,
+            "enabled": true,
+            "sources": [
+                { "src": "N:/Houdini_path/otls/ffx_collection_a_blackbox.hda",
+                  "dst": "otls" }
             ]
         },
         {
             "id": "otls-ql",
-            "name": "ql 节点库（254 个）",
+            "name": "ql 节点库（约 200 个）",
             "default": false,
-            "enabled": false,
+            "enabled": true,
             "sources": [
                 { "src": "N:/Houdini_path/otls", "dst": "otls",
-                  "include": ["*_ql_*"] }
+                  "include": ["*_ql_*"], "exclude": ["backup"] }
             ]
         }
     ]

@@ -1,23 +1,91 @@
 {
     "toolkit": "MyToolkit",
-    "version": "1.0.0",
-    "updated": "2026-10-18T01:11:48+08:00",
+    "version": "1.0.1",
+    "updated": "2026-10-18T01:28:57+08:00",
     "min_houdini": "19.5",
     "changelog": [
+        "1.0.1 更新：核心工具（工具架 + Python + 预设） v1.0.1、自收集 HDA / 节点库（不含 ql 与 ffx 大包） v1.0.0、ffx 节点集（91MB 黑盒包，装一次基本不动） v1.0.0、ql 节点库（约 200 个） v1.0.0",
         "1.0.0 更新：核心工具（工具架 + Python + 预设） v1.0.0"
     ],
     "modules": [
         {
             "id": "core",
             "name": "核心工具（工具架 + Python + 预设）",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "default": true,
-            "content_hash": "512ed1ca5150016edd40eeaa8694f4ca5527a61549e01b6458956a7018a525d5",
+            "content_hash": "4ff684de1fd61a7e6045402aa56f549771242a38a0091b7aab42a7e2f7b614e4",
             "parts": [
                 {
-                    "url": "dist/core-1.0.0.zip",
-                    "size": 18685,
-                    "sha256": "83295d6078ebebafcdd4b875a625f55aed1467d232cc3717b309694861a6c412"
+                    "url": "dist/core-1.0.1.zip",
+                    "size": 18909,
+                    "sha256": "f21cf0d5d5349c1a77e64fdb894781b0053f4bc267cbb3d6e7b6003c56deae50"
+                }
+            ]
+        },
+        {
+            "id": "otls-misc",
+            "name": "自收集 HDA / 节点库（不含 ql 与 ffx 大包）",
+            "version": "1.0.0",
+            "default": true,
+            "content_hash": "999e0b37cb92c519804c7b11f9df3ba18e28e9c0bf851afbc0e2ae54f6028688",
+            "parts": [
+                {
+                    "url": "dist/otls-misc-1.0.0.zip",
+                    "size": 1037050,
+                    "sha256": "2d5bbb998f8374473c4d0d48450710889f77e0c2e4becdff40105a9668027298"
+                }
+            ]
+        },
+        {
+            "id": "otls-ffx",
+            "name": "ffx 节点集（91MB 黑盒包，装一次基本不动）",
+            "version": "1.0.0",
+            "default": false,
+            "content_hash": "9734af76881ad062e60e61c3f26f30be2e2ccff6ed02aab90094dbe16408a8cb",
+            "parts": [
+                {
+                    "url": "dist/otls-ffx-1.0.0.p1.zip",
+                    "size": 19391097,
+                    "sha256": "be5a1f568b662ded7fda7c97a93a933a686a18fb074b313eab581eeae05cf021"
+                },
+                {
+                    "url": "dist/otls-ffx-1.0.0.p2.zip",
+                    "size": 11297181,
+                    "sha256": "ad0dcc68afd298861306787f2b12be1585c73d2932c4b4cb18c219027542449b"
+                },
+                {
+                    "url": "dist/otls-ffx-1.0.0.p3.zip",
+                    "size": 2482262,
+                    "sha256": "4d0fb245bb142d49b3fe27d7c0a5ed560520729befbb0d76eba79a8c07c591ce"
+                },
+                {
+                    "url": "dist/otls-ffx-1.0.0.p4.zip",
+                    "size": 2509565,
+                    "sha256": "62923c4733af6596b7f6b4764e507d0b7a03dca693f3702e53cc6420f6d3e155"
+                },
+                {
+                    "url": "dist/otls-ffx-1.0.0.p5.zip",
+                    "size": 1370935,
+                    "sha256": "133d389c95c7d4af4776d840730b9c9e97802c959ebd3967811554a1ed8dcceb"
+                }
+            ]
+        },
+        {
+            "id": "otls-ql",
+            "name": "ql 节点库（约 200 个）",
+            "version": "1.0.0",
+            "default": false,
+            "content_hash": "1af8144172851acb66fd5462c26bb866360af8aae83ace38afddf854452bcb91",
+            "parts": [
+                {
+                    "url": "dist/otls-ql-1.0.0.p1.zip",
+                    "size": 17956850,
+                    "sha256": "1da568f95d60e26d3a217d1cea4fcf3d9b78a1ec17d93442759e9f42216ba136"
+                },
+                {
+                    "url": "dist/otls-ql-1.0.0.p2.zip",
+                    "size": 644135,
+                    "sha256": "72793b3caa9027ceb468fdd169ed22756e7c19978d4281f88fd35c883ee00b3e"
                 }
             ]
         }

@@ -20,6 +20,7 @@ import argparse
 import fnmatch
 import hashlib
 import json
+import shutil
 import sys
 import zipfile
 from datetime import datetime
@@ -29,6 +30,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "tools" / "build_config.json"
 MANIFEST_PATH = ROOT / "manifest.json"
 DIST = ROOT / "dist"
+BUILD_TMP = ROOT / ".build_tmp"   # 大文件切片的中转区，用完即删
 
 CHANGELOG_KEEP = 10
 
@@ -66,7 +68,9 @@ def collect(module):
             continue
 
         if src.is_file():
-            items.append((src, dst or src.name))
+            # dst 是目录名，单文件源要拼上自己的文件名
+            rel = ("%s/%s" % (dst, src.name)) if dst else src.name
+            items.append((src, rel))
             continue
 
         for p in sorted(src.rglob("*")):
@@ -96,6 +100,48 @@ def collect(module):
         seen.add(rel)
         uniq.append((src, rel))
     return uniq
+
+
+def split_big_file(src, rel, max_bytes, tmpdir):
+    """把超过单片上限的文件切成若干片段，返回 [(片段路径, 片段 rel), ...]。
+
+    Cloudflare Pages 单文件硬限 25MB，而 HDA 压缩率往往很低
+    （实测 91MB 的 ffx_collection_a_blackbox.hda 压缩后仍有 35MB），
+    光靠"按文件分装多个 zip"救不了单个超大文件，只能切文件本身。
+    """
+    frags = []
+    idx = 0
+    tmpdir.mkdir(parents=True, exist_ok=True)
+    with open(src, "rb") as f:
+        while True:
+            data = f.read(max_bytes)
+            if not data:
+                break
+            name = "%s.p%03d" % (rel, idx)
+            frag = tmpdir / ("%s.part" % hashlib.sha1(name.encode("utf-8")).hexdigest()[:20])
+            frag.write_bytes(data)
+            frags.append((frag, name))
+            idx += 1
+    return frags
+
+
+def apply_file_splitting(items, max_bytes, tmpdir):
+    """返回 (新的打包条目, {原文件 rel: 片段数})。
+
+    注意：只对"单个文件就超过上限"的做切片；
+    content_hash 仍按原文件算，保证文件内容没变时不会误判成有更新。
+    """
+    new_items, parts_map = [], {}
+    for src, rel in items:
+        sz = src.stat().st_size
+        if sz > max_bytes:
+            frags = split_big_file(src, rel, max_bytes, tmpdir)
+            new_items.extend(frags)
+            parts_map[rel] = len(frags)
+            log("    ⚠ 大文件切片：%s（%.1f MB → %d 段）" % (rel, sz / 1048576.0, len(frags)))
+        else:
+            new_items.append((src, rel))
+    return new_items, parts_map
 
 
 def content_hash(items):
@@ -136,11 +182,18 @@ def bump(ver, level="patch"):
     return ".".join(str(x) for x in a)
 
 
-def write_zip(out_path, files, zip_root):
+def write_zip(out_path, files, zip_root, parts_map=None):
+    """打包。parts_map 非空时在 zip 根写一份 .parts.json，
+    安装器据此把片段拼回原文件。"""
     tmp = out_path.with_suffix(out_path.suffix + ".tmp")
     with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for src, rel in files:
             z.write(src, "%s/%s" % (zip_root, rel))
+        if parts_map:
+            z.writestr(
+                "%s/.parts.json" % zip_root,
+                json.dumps(parts_map, indent=2, ensure_ascii=False),
+            )
     tmp.replace(out_path)
 
 
@@ -262,7 +315,9 @@ def main():
         log("  有变化：%d 个文件 / %.1f MB → v%s"
             % (len(items), total_bytes / 1048576.0, ver))
 
-        parts = split_parts(items, max_bytes)
+        # 大文件切片：单个文件就超过上限的，切成多段再分装
+        pack_items, parts_map = apply_file_splitting(items, max_bytes, BUILD_TMP)
+        parts = split_parts(pack_items, max_bytes)
         part_infos = []
         for i, chunk in enumerate(parts):
             name = part_name(mid, ver, i, len(parts))
@@ -273,7 +328,7 @@ def main():
                     % (name, len(chunk), chunk_bytes / 1048576.0))
                 part_infos.append({"url": "dist/" + name, "size": 0, "sha256": "dry-run"})
                 continue
-            write_zip(out, chunk, zip_root)
+            write_zip(out, chunk, zip_root, parts_map)
             size = out.stat().st_size
             digest = sha256_file(out)
             if size > 25 * 1024 * 1024:
@@ -334,6 +389,7 @@ def main():
         json.dumps(manifest, indent=4, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    shutil.rmtree(BUILD_TMP, ignore_errors=True)
     log("已写入 manifest.json")
     write_shelf_index(cfg, manifest)
     log("模块：")
