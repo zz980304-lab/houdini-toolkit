@@ -32,6 +32,7 @@ BASE_URLS = [
 TOOLKIT_DIRNAME = "MyToolkit"
 MANIFEST_NAME = "manifest.json"
 INSTALLED_NAME = "installed.json"
+BOOTSTRAP_SHELF_NAME = "bootstrap.shelf"   # 引导器自己，卸载时绝不能删
 BACKUP_KEEP = 2
 TIMEOUT = 25
 RETRY = 2
@@ -391,21 +392,27 @@ def install_from(tmp_dir, module_files, installed, manifest, wanted_ids):
     dst_tb = os.path.join(pref, "toolbar")
     if not os.path.isdir(dst_tb):
         os.makedirs(dst_tb)
+    copied_shelves = []
     if os.path.isdir(src_tb):
         for fn in os.listdir(src_tb):
             if fn.lower().endswith(".shelf"):
                 shutil.copy2(os.path.join(src_tb, fn), os.path.join(dst_tb, fn))
+                copied_shelves.append(fn)
 
     # ---- 本地版本记录
     versions = dict(installed.get("modules", {}))
     for m in manifest.get("modules", []):
         if m["id"] in wanted_ids:
             versions[m["id"]] = m["version"]
+    prev = installed.get("shelves") or []
     write_json(os.path.join(cur, INSTALLED_NAME), {
         "version": manifest.get("version"),
         "installed_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "base_url": BASE_URLS[0],
         "modules": versions,
+        # 记录"我往 toolbar 里放过哪些 shelf"，卸载时只删这些，
+        # 绝不能把 bootstrap.shelf 自己删掉（删了就没法一键装回来了）
+        "shelves": sorted(set(prev) | set(copied_shelves)),
     })
 
 
@@ -446,8 +453,20 @@ def _main():
             return
         wanted = ids
     else:
-        todo = [(m, local_mods.get(m["id"])) for m in manifest.get("modules", [])
-                if local_mods.get(m["id"]) != m["version"]]
+        # 只关心"装过的模块"。没装过的模块一律不催 ——
+        # 否则用户第一次只勾了默认模块，之后每次点击都会被提示
+        # "发现更新：ffx 新增 v1.0.0"，而那 91MB 他根本没要过。
+        # 例外：新出现的、标记为 default 的模块会提示一次；
+        # 用户若点了取消，就记进 dismissed，以后不再提。
+        dismissed = set(installed.get("dismissed") or [])
+        todo = []
+        for m in manifest.get("modules", []):
+            cur = local_mods.get(m["id"])
+            if cur is None:
+                if m.get("default") and m["id"] not in dismissed:
+                    todo.append((m, None))
+            elif cur != m["version"]:
+                todo.append((m, cur))
         if not todo:
             r = _msg("已是最新版本 v%s\n更新于 %s"
                      % (local_ver, manifest.get("updated", "").replace("T", " ")[:16]),
@@ -469,6 +488,15 @@ def _main():
             r = _msg("\n".join(lines), buttons=("更新", "取消", "更新日志"),
                      default=0, close=1)
             if r == 1:
+                # 点取消：把"新增但还没装"的模块记下来，下次不再提醒
+                skipped = [m["id"] for m, cur in todo if cur is None]
+                if skipped:
+                    try:
+                        rec = read_json(os.path.join(toolkit_dir(), INSTALLED_NAME), {}) or {}
+                        rec["dismissed"] = sorted(dismissed | set(skipped))
+                        write_json(os.path.join(toolkit_dir(), INSTALLED_NAME), rec)
+                    except Exception:
+                        pass
                 return
             if r == 2:
                 show_changelog(manifest)
@@ -516,6 +544,104 @@ def _main():
          % (manifest.get("version"), human(got), toolkit_dir(), tip),
          buttons=("好",))
     status("MyToolkit：已更新到 v%s" % manifest.get("version"))
+
+
+# ---------------------------------------------------------------- 卸载
+
+def dir_size(path):
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except Exception:
+                pass
+    return total
+
+
+def _uninstall():
+    import hou  # noqa: F401
+
+    pref = pref_dir()
+    tk = toolkit_dir()
+    pkg = os.path.join(pref, "packages", "mytoolkit.json")
+    inst = read_json(os.path.join(tk, INSTALLED_NAME), {}) or {}
+
+    # ---- 收集要删的东西
+    items = []          # [(显示名, 路径, 是否目录)]
+    if os.path.isdir(tk):
+        items.append(("工具集目录 %s/" % TOOLKIT_DIRNAME, tk, True))
+    if os.path.isfile(pkg):
+        items.append(("包配置 packages/mytoolkit.json", pkg, False))
+    # 只删当年我们自己拷过去的 shelf，bootstrap.shelf 必须留着
+    for name in (inst.get("shelves") or []):
+        if name.lower() == BOOTSTRAP_SHELF_NAME:
+            continue
+        p = os.path.join(pref, "toolbar", name)
+        if os.path.isfile(p):
+            items.append(("工具架 toolbar/%s" % name, p, False))
+
+    # 兼容：记录缺失但东西确实在目录里
+    if not items:
+        stray = os.path.join(pref, "toolbar", "My_Tool.shelf")
+        if os.path.isfile(stray):
+            items.append(("工具架 toolbar/My_Tool.shelf", stray, False))
+
+    if not items:
+        _msg("没有检测到已安装的工具集，不需要卸载。", buttons=("知道了",))
+        return
+
+    total = 0
+    lines = []
+    for desc, p, isdir in items:
+        sz = dir_size(p) if isdir else os.path.getsize(p)
+        total += sz
+        lines.append("· %s    %s" % (desc, human(sz)))
+
+    text = ("即将卸载阿龙工具集（v%s）\n\n%s\n\n共 %s\n\n"
+            "说明：\n"
+            "· 「阿龙工具」这个工具架会保留，随时能重新装回来\n"
+            "· 备份目录 .mytoolkit_backup 不会被删\n"
+            "· 卸载后需要重启 Houdini，工具架才会从界面消失\n\n"
+            "继续？" % (inst.get("version", "?"), "\n".join(lines), human(total)))
+
+    if _msg(text, buttons=("卸载", "取消"), default=1, close=1) != 0:
+        return
+
+    failed = []
+    for desc, p, isdir in items:
+        try:
+            if isdir:
+                shutil.rmtree(p)
+            else:
+                os.remove(p)
+        except Exception as e:
+            failed.append("%s  （%s）" % (desc, e))
+
+    status("MyToolkit：已卸载")
+    if failed:
+        _msg("有部分内容删不掉，多半正被 Houdini 占用：\n\n%s\n\n"
+             "重启 Houdini 之后再点一次卸载即可。" % "\n".join(failed),
+             buttons=("知道了",))
+    else:
+        _msg("已卸载工具集 v%s\n\n释放 %s\n\n"
+             "重启 Houdini 生效。想装回来时点「安装 / 更新工具集」就行。"
+             % (inst.get("version", "?"), human(total)), buttons=("好",))
+
+
+def uninstall_main():
+    """卸载入口，给工具架按钮调用。"""
+    try:
+        _uninstall()
+    except Exception as e:
+        import traceback
+        detail = traceback.format_exc()
+        try:
+            import hou
+            hou.ui.displayMessage("MyToolkit 卸载出错：\n\n%s" % e,
+                                  details=detail, buttons=("关闭",))
+        except Exception:
+            print(detail)
 
 
 def main():

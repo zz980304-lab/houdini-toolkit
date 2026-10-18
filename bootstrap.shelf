@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <shelfDocument>
   <!-- 自动生成，请勿手改。源文件：installer/installer.py（改完跑 tools/make_shelf.py） -->
+  <!-- 两个按钮各自内嵌一份完整代码，文件略大（约 37KB）是自包含的代价：
+       即使服务器上 installer.py 没了，只要这个 shelf 在就能装、能卸。 -->
   <toolshelf name="mytoolkit_bootstrap" label="阿龙工具">
     <memberTool name="mytoolkit_installer"/>
+    <memberTool name="mytoolkit_uninstaller"/>
   </toolshelf>
 
   <tool name="mytoolkit_installer" label="安装 / 更新工具集" icon="MISC_python">
@@ -43,6 +46,7 @@ BASE_URLS = [
 TOOLKIT_DIRNAME = "MyToolkit"
 MANIFEST_NAME = "manifest.json"
 INSTALLED_NAME = "installed.json"
+BOOTSTRAP_SHELF_NAME = "bootstrap.shelf"   # 引导器自己，卸载时绝不能删
 BACKUP_KEEP = 2
 TIMEOUT = 25
 RETRY = 2
@@ -402,21 +406,27 @@ def install_from(tmp_dir, module_files, installed, manifest, wanted_ids):
     dst_tb = os.path.join(pref, "toolbar")
     if not os.path.isdir(dst_tb):
         os.makedirs(dst_tb)
+    copied_shelves = []
     if os.path.isdir(src_tb):
         for fn in os.listdir(src_tb):
             if fn.lower().endswith(".shelf"):
                 shutil.copy2(os.path.join(src_tb, fn), os.path.join(dst_tb, fn))
+                copied_shelves.append(fn)
 
     # ---- 本地版本记录
     versions = dict(installed.get("modules", {}))
     for m in manifest.get("modules", []):
         if m["id"] in wanted_ids:
             versions[m["id"]] = m["version"]
+    prev = installed.get("shelves") or []
     write_json(os.path.join(cur, INSTALLED_NAME), {
         "version": manifest.get("version"),
         "installed_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "base_url": BASE_URLS[0],
         "modules": versions,
+        # 记录"我往 toolbar 里放过哪些 shelf"，卸载时只删这些，
+        # 绝不能把 bootstrap.shelf 自己删掉（删了就没法一键装回来了）
+        "shelves": sorted(set(prev) | set(copied_shelves)),
     })
 
 
@@ -457,8 +467,20 @@ def _main():
             return
         wanted = ids
     else:
-        todo = [(m, local_mods.get(m["id"])) for m in manifest.get("modules", [])
-                if local_mods.get(m["id"]) != m["version"]]
+        # 只关心"装过的模块"。没装过的模块一律不催 ——
+        # 否则用户第一次只勾了默认模块，之后每次点击都会被提示
+        # "发现更新：ffx 新增 v1.0.0"，而那 91MB 他根本没要过。
+        # 例外：新出现的、标记为 default 的模块会提示一次；
+        # 用户若点了取消，就记进 dismissed，以后不再提。
+        dismissed = set(installed.get("dismissed") or [])
+        todo = []
+        for m in manifest.get("modules", []):
+            cur = local_mods.get(m["id"])
+            if cur is None:
+                if m.get("default") and m["id"] not in dismissed:
+                    todo.append((m, None))
+            elif cur != m["version"]:
+                todo.append((m, cur))
         if not todo:
             r = _msg("已是最新版本 v%s\n更新于 %s"
                      % (local_ver, manifest.get("updated", "").replace("T", " ")[:16]),
@@ -480,6 +502,15 @@ def _main():
             r = _msg("\n".join(lines), buttons=("更新", "取消", "更新日志"),
                      default=0, close=1)
             if r == 1:
+                # 点取消：把"新增但还没装"的模块记下来，下次不再提醒
+                skipped = [m["id"] for m, cur in todo if cur is None]
+                if skipped:
+                    try:
+                        rec = read_json(os.path.join(toolkit_dir(), INSTALLED_NAME), {}) or {}
+                        rec["dismissed"] = sorted(dismissed | set(skipped))
+                        write_json(os.path.join(toolkit_dir(), INSTALLED_NAME), rec)
+                    except Exception:
+                        pass
                 return
             if r == 2:
                 show_changelog(manifest)
@@ -529,6 +560,104 @@ def _main():
     status("MyToolkit：已更新到 v%s" % manifest.get("version"))
 
 
+# ---------------------------------------------------------------- 卸载
+
+def dir_size(path):
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except Exception:
+                pass
+    return total
+
+
+def _uninstall():
+    import hou  # noqa: F401
+
+    pref = pref_dir()
+    tk = toolkit_dir()
+    pkg = os.path.join(pref, "packages", "mytoolkit.json")
+    inst = read_json(os.path.join(tk, INSTALLED_NAME), {}) or {}
+
+    # ---- 收集要删的东西
+    items = []          # [(显示名, 路径, 是否目录)]
+    if os.path.isdir(tk):
+        items.append(("工具集目录 %s/" % TOOLKIT_DIRNAME, tk, True))
+    if os.path.isfile(pkg):
+        items.append(("包配置 packages/mytoolkit.json", pkg, False))
+    # 只删当年我们自己拷过去的 shelf，bootstrap.shelf 必须留着
+    for name in (inst.get("shelves") or []):
+        if name.lower() == BOOTSTRAP_SHELF_NAME:
+            continue
+        p = os.path.join(pref, "toolbar", name)
+        if os.path.isfile(p):
+            items.append(("工具架 toolbar/%s" % name, p, False))
+
+    # 兼容：记录缺失但东西确实在目录里
+    if not items:
+        stray = os.path.join(pref, "toolbar", "My_Tool.shelf")
+        if os.path.isfile(stray):
+            items.append(("工具架 toolbar/My_Tool.shelf", stray, False))
+
+    if not items:
+        _msg("没有检测到已安装的工具集，不需要卸载。", buttons=("知道了",))
+        return
+
+    total = 0
+    lines = []
+    for desc, p, isdir in items:
+        sz = dir_size(p) if isdir else os.path.getsize(p)
+        total += sz
+        lines.append("· %s    %s" % (desc, human(sz)))
+
+    text = ("即将卸载阿龙工具集（v%s）\n\n%s\n\n共 %s\n\n"
+            "说明：\n"
+            "· 「阿龙工具」这个工具架会保留，随时能重新装回来\n"
+            "· 备份目录 .mytoolkit_backup 不会被删\n"
+            "· 卸载后需要重启 Houdini，工具架才会从界面消失\n\n"
+            "继续？" % (inst.get("version", "?"), "\n".join(lines), human(total)))
+
+    if _msg(text, buttons=("卸载", "取消"), default=1, close=1) != 0:
+        return
+
+    failed = []
+    for desc, p, isdir in items:
+        try:
+            if isdir:
+                shutil.rmtree(p)
+            else:
+                os.remove(p)
+        except Exception as e:
+            failed.append("%s  （%s）" % (desc, e))
+
+    status("MyToolkit：已卸载")
+    if failed:
+        _msg("有部分内容删不掉，多半正被 Houdini 占用：\n\n%s\n\n"
+             "重启 Houdini 之后再点一次卸载即可。" % "\n".join(failed),
+             buttons=("知道了",))
+    else:
+        _msg("已卸载工具集 v%s\n\n释放 %s\n\n"
+             "重启 Houdini 生效。想装回来时点「安装 / 更新工具集」就行。"
+             % (inst.get("version", "?"), human(total)), buttons=("好",))
+
+
+def uninstall_main():
+    """卸载入口，给工具架按钮调用。"""
+    try:
+        _uninstall()
+    except Exception as e:
+        import traceback
+        detail = traceback.format_exc()
+        try:
+            import hou
+            hou.ui.displayMessage("MyToolkit 卸载出错：\n\n%s" % e,
+                                  details=detail, buttons=("关闭",))
+        except Exception:
+            print(detail)
+
+
 def main():
     """给工具架按钮调用的入口，异常一律弹窗显示，不抛 traceback。"""
     try:
@@ -545,6 +674,679 @@ def main():
 
 main()
 
+
+main()
+]]></script>
+  </tool>
+
+  <tool name="mytoolkit_uninstaller" label="卸载 / 清除工具集" icon="MISC_python">
+    <helpText><![CDATA[删除本地的 MyToolkit 目录、包配置和工具架文件。
+「阿龙工具」这个工具架本身会保留，卸载后随时可以重新装回来。]]></helpText>
+    <script scriptType="python"><![CDATA[
+# -*- coding: utf-8 -*-
+"""
+MyToolkit 安装 / 更新器
+
+由 bootstrap.shelf 里的按钮调用，也可在 Houdini 的 Python Shell 里直接 import 运行。
+tools/make_shelf.py 会把这个文件的全文内嵌进 bootstrap.shelf。
+
+设计原则：
+  1. 不依赖任何第三方库，只用 Houdini 自带 Python。
+  2. 不使用 QTimer / 事件循环（曾在本机触发过崩溃），进度只走状态栏。
+  3. 网络默认直连（pages.dev 国内可直连）；环境变量里的失效代理必须显式忽略，
+     否则 urllib 会自动套用它导致 502。
+"""
+
+import hashlib
+import json
+import os
+import shutil
+import tempfile
+import time
+import urllib.request
+import zipfile
+
+# ---------------------------------------------------------------- 常量
+
+BASE_URLS = [
+    "https://houdini-toolkit.pages.dev",
+    "https://zz980304-lab.github.io/houdini-toolkit",
+    "https://cdn.jsdelivr.net/gh/zz980304-lab/houdini-toolkit@main",
+]
+
+TOOLKIT_DIRNAME = "MyToolkit"
+MANIFEST_NAME = "manifest.json"
+INSTALLED_NAME = "installed.json"
+BOOTSTRAP_SHELF_NAME = "bootstrap.shelf"   # 引导器自己，卸载时绝不能删
+BACKUP_KEEP = 2
+TIMEOUT = 25
+RETRY = 2
+
+
+# ---------------------------------------------------------------- 基础
+
+def _hou():
+    import hou
+    return hou
+
+
+def pref_dir():
+    import hou
+    return hou.expandString("$HOUDINI_USER_PREF_DIR")
+
+
+def toolkit_dir():
+    return os.path.join(pref_dir(), TOOLKIT_DIRNAME)
+
+
+def human(n):
+    n = float(n or 0)
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return "%.1f %s" % (n, unit)
+        n /= 1024.0
+    return "%.1f GB" % n
+
+
+def status(msg):
+    try:
+        import hou
+        hou.ui.setStatusMessage(msg, severity=hou.severityType.ImportantMessage)
+    except Exception:
+        pass
+
+
+def read_json(path, default=None):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+
+def write_json(path, data):
+    d = os.path.dirname(path)
+    if d and not os.path.isdir(d):
+        os.makedirs(d)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+
+def sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _opener():
+    """直连：显式清空代理（系统里有失效的 http_proxy 环境变量）。"""
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def _opener_proxy():
+    """兜底：走系统环境变量里的代理。"""
+    return urllib.request.build_opener()
+
+
+def _request(url, opener):
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "MyToolkitInstaller/1.0 Houdini",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+        },
+    )
+    return opener.open(req, timeout=TIMEOUT)
+
+
+def fetch_bytes(rel, stamp=True):
+    """按 BASE_URLS 顺序拉文件，全部失败才抛异常。"""
+    sep = "&" if "?" in rel else "?"
+    q = rel + (sep + "t=%d" % int(time.time()) if stamp else "")
+    errors = []
+    for base in BASE_URLS:
+        url = base.rstrip("/") + "/" + q.lstrip("/")
+        for opener in (_opener(), _opener_proxy()):
+            for attempt in range(RETRY):
+                try:
+                    with _request(url, opener) as r:
+                        return r.read()
+                except Exception as e:
+                    errors.append("%s -> %s" % (url, e))
+                    time.sleep(0.5)
+    raise RuntimeError("所有地址都拉取失败：\n" + "\n".join(errors[-4:]))
+
+
+def download_to(url, dst, progress=None):
+    """下载到 dst，progress(done, total) 回调。直连优先，失败转代理。"""
+    last = None
+    for opener in (_opener(), _opener_proxy()):
+        try:
+            with _request(url, opener) as r, open(dst, "wb") as f:
+                total = int(r.headers.get("Content-Length") or 0)
+                done = 0
+                while True:
+                    chunk = r.read(1 << 16)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    done += len(chunk)
+                    if progress:
+                        progress(done, total)
+            return dst
+        except Exception as e:
+            last = e
+            try:
+                if os.path.exists(dst):
+                    os.remove(dst)
+            except Exception:
+                pass
+    raise RuntimeError("下载失败 %s\n%s" % (url, last))
+
+
+# ---------------------------------------------------------------- 界面
+
+def _msg(text, buttons=("确定",), default=0, close=0):
+    import hou
+    return hou.ui.displayMessage(text, buttons=buttons,
+                                 default_choice=default, close_choice=close)
+
+
+def choose_modules(manifest, installed_versions):
+    """返回要安装的模块 id 列表，取消返回 None。"""
+    import hou
+    mods = manifest.get("modules", [])
+    labels = []
+    for m in mods:
+        cur = installed_versions.get(m["id"])
+        if cur and cur != m["version"]:
+            tag = "   已装 v%s → v%s" % (cur, m["version"])
+        elif cur:
+            tag = "   已是最新"
+        else:
+            tag = "   未安装"
+        labels.append("%s  [v%s]%s" % (m.get("name", m["id"]), m["version"], tag))
+
+    defaults = tuple(i for i, m in enumerate(mods) if m.get("default"))
+    # 注意：selectFromList 没有 multiple_select 参数（多选是默认行为，
+    # 由 exclusive=False 控制）。别按直觉加，20.5 会直接抛 TypeError。
+    # 这里用最保守的参数集，老版本新版本都认；万一还报参数错就再退一步。
+    try:
+        sel = hou.ui.selectFromList(
+            labels,
+            message="选择要安装 / 更新的模块",
+            title="MyToolkit %s" % manifest.get("version", ""),
+            default_choices=defaults,
+            exclusive=False,
+            clear_on_cancel=True,
+        )
+    except TypeError:
+        sel = hou.ui.selectFromList(labels)
+
+    if not sel:
+        return None
+    picked = [i for i in sel if 0 <= i < len(mods)]
+    if not picked:
+        return None
+    return [mods[i]["id"] for i in picked]
+
+
+def show_changelog(manifest):
+    lines = manifest.get("changelog", [])[:8]
+    _msg("更新日志\n\n" + ("\n".join("· " + x for x in lines) or "（无）"),
+         buttons=("知道了",))
+
+
+# ---------------------------------------------------------------- 安装
+
+def plan_download(manifest, wanted_ids):
+    """返回 ([(模块, part)], 总字节数)"""
+    jobs, total = [], 0
+    for m in manifest.get("modules", []):
+        if m["id"] not in wanted_ids:
+            continue
+        for p in m.get("parts", []):
+            jobs.append((m, p))
+            total += int(p.get("size") or 0)
+    return jobs, total
+
+
+def download_all(manifest, wanted_ids):
+    jobs, total = plan_download(manifest, wanted_ids)
+    if not jobs:
+        return None, 0
+
+    tmp = tempfile.mkdtemp(prefix="mytoolkit_dl_")
+    done_bytes = 0
+    checked = {}
+    for mod, part in jobs:
+        base_name = part["url"].rstrip("/").split("/")[-1]
+        dst = os.path.join(tmp, base_name)
+
+        def cb(done, this_total, _m=mod, _base=done_bytes, _t=total):
+            got = _base + done
+            pct = (got * 100.0 / _t) if _t else 0
+            status("MyToolkit：下载 %s  %s / %s (%.0f%%)"
+                   % (_m.get("name", _m["id"]), human(got), human(_t), pct))
+
+        # 逐个地址尝试
+        last = None
+        for base in BASE_URLS:
+            url = base.rstrip("/") + "/" + part["url"].lstrip("/")
+            try:
+                download_to(url, dst, cb)
+                last = None
+                break
+            except Exception as e:
+                last = e
+        if last is not None:
+            shutil.rmtree(tmp, ignore_errors=True)
+            raise RuntimeError("下载失败：%s\n%s" % (part["url"], last))
+
+        want = (part.get("sha256") or "").lower()
+        got = sha256_file(dst)
+        if want and want != got:
+            shutil.rmtree(tmp, ignore_errors=True)
+            raise RuntimeError("文件校验失败（可能被 CDN 缓存了旧文件），请重试：\n%s\n期望 %s\n实际 %s"
+                               % (base_name, want[:16], got[:16]))
+        done_bytes += int(part.get("size") or os.path.getsize(dst))
+        checked.setdefault(mod["id"], []).append(dst)
+    status("MyToolkit：下载完成 %s" % human(done_bytes))
+    return tmp, done_bytes
+
+
+def backup_current():
+    """把现有 MyToolkit 整体挪到 pref 下的 .mytoolkit_backup/。
+    返回备份路径；挪不动（文件被占用）返回 None。"""
+    src = toolkit_dir()
+    if not os.path.isdir(src):
+        return None
+    bdir = os.path.join(pref_dir(), ".mytoolkit_backup")
+    if not os.path.isdir(bdir):
+        os.makedirs(bdir)
+    dst = os.path.join(bdir, "MyToolkit_%s" % time.strftime("%Y%m%d_%H%M%S"))
+    try:
+        shutil.move(src, dst)
+    except Exception:
+        # 移不动（文件被占用）就跳过备份，改用合并模式
+        return None
+    # 只保留最近几份
+    items = sorted(
+        [os.path.join(bdir, x) for x in os.listdir(bdir)],
+        key=lambda p: os.path.getmtime(p), reverse=True,
+    )
+    for old in items[BACKUP_KEEP:]:
+        shutil.rmtree(old, ignore_errors=True)
+    return dst
+
+
+def join_split_files(root):
+    """把 build.py 切碎的大文件拼回原样。
+
+    打包时单个文件超过单片上限（默认 20MB）会被切成
+    `xxx.hda.p000 / .p001 ...`，并在包根放一份 `.parts.json`
+    记录 `{"otls/xxx.hda": 5}`。这里按顺序拼回去再删掉片段。
+    """
+    tk = os.path.join(root, TOOLKIT_DIRNAME)
+    pj = os.path.join(tk, ".parts.json")
+    if not os.path.isfile(pj):
+        return 0
+    try:
+        with open(pj, "r", encoding="utf-8") as f:
+            mapping = json.load(f)
+    except Exception:
+        return 0
+
+    done = 0
+    for rel, count in mapping.items():
+        dst = os.path.join(tk, rel)
+        dstdir = os.path.dirname(dst)
+        if dstdir and not os.path.isdir(dstdir):
+            os.makedirs(dstdir)
+        try:
+            with open(dst, "wb") as out:
+                for i in range(int(count)):
+                    frag = os.path.join(tk, "%s.p%03d" % (rel, i))
+                    with open(frag, "rb") as f:
+                        out.write(f.read())
+                    os.remove(frag)
+            done += 1
+        except Exception:
+            pass
+    try:
+        os.remove(pj)
+    except Exception:
+        pass
+    return done
+
+
+def install_from(tmp_dir, module_files, installed, manifest, wanted_ids):
+    """
+    合并式安装：
+      1. 把现有 MyToolkit 复制成 staging（保留未更新的模块）
+      2. 把新 zip 解压覆盖到 staging 父目录
+      3. 旧目录挪去备份，staging 就位
+    """
+    pref = pref_dir()
+    staging_root = os.path.join(tmp_dir, "stage")
+    os.makedirs(staging_root, exist_ok=True)
+    staging = os.path.join(staging_root, TOOLKIT_DIRNAME)
+
+    cur = toolkit_dir()
+    if os.path.isdir(cur):
+        shutil.copytree(cur, staging, ignore=shutil.ignore_patterns("backup"))
+    else:
+        os.makedirs(staging, exist_ok=True)
+
+    for mid in wanted_ids:
+        for zpath in module_files.get(mid, []):
+            with zipfile.ZipFile(zpath) as z:
+                for member in z.namelist():
+                    top = member.split("/")[0]
+                    if top != TOOLKIT_DIRNAME:
+                        continue          # 只接受 MyToolkit/ 前缀
+                    z.extract(member, staging_root)
+
+    joined = join_split_files(staging_root)
+    if joined:
+        status("MyToolkit：已合并 %d 个大文件分片" % joined)
+
+    backup_current()
+
+    if os.path.isdir(cur):
+        # 备份没成功（多半是 dll 被占用）→ 原地合并覆盖，保住旧文件
+        shutil.copytree(staging, cur, dirs_exist_ok=True)
+    else:
+        shutil.move(staging, cur)
+
+    # ---- package 描述文件
+    pkg_dir = os.path.join(pref, "packages")
+    if not os.path.isdir(pkg_dir):
+        os.makedirs(pkg_dir)
+    write_json(os.path.join(pkg_dir, "mytoolkit.json"), {
+        "name": "mytoolkit",
+        "env": [{"MY_TOOLKIT": "$HOUDINI_USER_PREF_DIR/" + TOOLKIT_DIRNAME}],
+        "path": ["$MY_TOOLKIT"],
+    })
+
+    # ---- 工具架拷到 Houdini 认的 toolbar 目录
+    src_tb = os.path.join(cur, "toolbar")
+    dst_tb = os.path.join(pref, "toolbar")
+    if not os.path.isdir(dst_tb):
+        os.makedirs(dst_tb)
+    copied_shelves = []
+    if os.path.isdir(src_tb):
+        for fn in os.listdir(src_tb):
+            if fn.lower().endswith(".shelf"):
+                shutil.copy2(os.path.join(src_tb, fn), os.path.join(dst_tb, fn))
+                copied_shelves.append(fn)
+
+    # ---- 本地版本记录
+    versions = dict(installed.get("modules", {}))
+    for m in manifest.get("modules", []):
+        if m["id"] in wanted_ids:
+            versions[m["id"]] = m["version"]
+    prev = installed.get("shelves") or []
+    write_json(os.path.join(cur, INSTALLED_NAME), {
+        "version": manifest.get("version"),
+        "installed_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "base_url": BASE_URLS[0],
+        "modules": versions,
+        # 记录"我往 toolbar 里放过哪些 shelf"，卸载时只删这些，
+        # 绝不能把 bootstrap.shelf 自己删掉（删了就没法一键装回来了）
+        "shelves": sorted(set(prev) | set(copied_shelves)),
+    })
+
+
+def reload_shelves():
+    try:
+        import hou
+        tb = os.path.join(pref_dir(), "toolbar")
+        for fn in sorted(os.listdir(tb)):
+            if fn.lower().endswith(".shelf"):
+                hou.shelves.loadFile(os.path.join(tb, fn))
+        return True
+    except Exception:
+        return False
+
+
+def _main():
+    import hou  # noqa: F401  确保在 Houdini 环境里
+
+    installed = read_json(os.path.join(toolkit_dir(), INSTALLED_NAME), {}) or {}
+    local_ver = installed.get("version")
+    local_mods = installed.get("modules", {})
+
+    status("MyToolkit：正在检查更新…")
+    try:
+        raw = fetch_bytes(MANIFEST_NAME)
+        manifest = json.loads(raw.decode("utf-8"))
+    except Exception as e:
+        _msg("无法获取更新信息，请检查网络。\n\n%s" % e, buttons=("关闭",))
+        return
+
+    remote_ver = manifest.get("version", "?")
+    wanted = []
+
+    if not local_ver:
+        # 首次安装
+        ids = choose_modules(manifest, local_mods)
+        if ids is None:
+            return
+        wanted = ids
+    else:
+        # 只关心"装过的模块"。没装过的模块一律不催 ——
+        # 否则用户第一次只勾了默认模块，之后每次点击都会被提示
+        # "发现更新：ffx 新增 v1.0.0"，而那 91MB 他根本没要过。
+        # 例外：新出现的、标记为 default 的模块会提示一次；
+        # 用户若点了取消，就记进 dismissed，以后不再提。
+        dismissed = set(installed.get("dismissed") or [])
+        todo = []
+        for m in manifest.get("modules", []):
+            cur = local_mods.get(m["id"])
+            if cur is None:
+                if m.get("default") and m["id"] not in dismissed:
+                    todo.append((m, None))
+            elif cur != m["version"]:
+                todo.append((m, cur))
+        if not todo:
+            r = _msg("已是最新版本 v%s\n更新于 %s"
+                     % (local_ver, manifest.get("updated", "").replace("T", " ")[:16]),
+                     buttons=("确定", "强制重装", "更新日志"), default=0, close=0)
+            if r == 1:
+                ids = choose_modules(manifest, {})
+                if ids is None:
+                    return
+                wanted = ids
+            elif r == 2:
+                show_changelog(manifest)
+            return
+        else:
+            lines = ["发现更新  v%s → v%s" % (local_ver, remote_ver), ""]
+            for m, cur in todo:
+                lines.append("· %s：%s" % (
+                    m.get("name", m["id"]),
+                    ("v%s → v%s" % (cur, m["version"])) if cur else "新增 v%s" % m["version"]))
+            r = _msg("\n".join(lines), buttons=("更新", "取消", "更新日志"),
+                     default=0, close=1)
+            if r == 1:
+                # 点取消：把"新增但还没装"的模块记下来，下次不再提醒
+                skipped = [m["id"] for m, cur in todo if cur is None]
+                if skipped:
+                    try:
+                        rec = read_json(os.path.join(toolkit_dir(), INSTALLED_NAME), {}) or {}
+                        rec["dismissed"] = sorted(dismissed | set(skipped))
+                        write_json(os.path.join(toolkit_dir(), INSTALLED_NAME), rec)
+                    except Exception:
+                        pass
+                return
+            if r == 2:
+                show_changelog(manifest)
+                return
+            wanted = [m["id"] for m, _ in todo]
+
+    jobs, total = plan_download(manifest, wanted)
+    if not jobs:
+        _msg("没有需要下载的内容。", buttons=("关闭",))
+        return
+
+    names = "、".join(m.get("name", m["id"]) for m in manifest["modules"] if m["id"] in wanted)
+    if _msg("将安装：\n%s\n\n需要下载约 %s\n\n现在开始？" % (names, human(total)),
+            buttons=("开始", "取消"), default=0, close=1) != 0:
+        return
+
+    try:
+        tmp_dir, got = download_all(manifest, wanted)
+    except Exception as e:
+        _msg("下载失败：\n\n%s" % e, buttons=("关闭",))
+        return
+    if not tmp_dir:
+        return
+
+    # 收集每个模块的 zip 路径
+    module_files = {}
+    for mod, part in jobs:
+        name = part["url"].rstrip("/").split("/")[-1]
+        module_files.setdefault(mod["id"], []).append(os.path.join(tmp_dir, name))
+
+    status("MyToolkit：正在安装…")
+    try:
+        install_from(tmp_dir, module_files, installed, manifest, wanted)
+    except Exception as e:
+        _msg("安装失败：\n\n%s\n\n旧版本仍在（备份在 .mytoolkit_backup）" % e, buttons=("关闭",))
+        return
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    hot = reload_shelves()
+    tip = "" if hot else "\n\n工具架可能需要重启 Houdini 才会出现。"
+    _msg("安装完成\n\n版本：%s\n下载：%s\n位置：%s\n\n"
+         "包路径已在 packages/mytoolkit.json 中注册，"
+         "OTL / Python / dll 会在下次启动 Houdini 时生效。%s"
+         % (manifest.get("version"), human(got), toolkit_dir(), tip),
+         buttons=("好",))
+    status("MyToolkit：已更新到 v%s" % manifest.get("version"))
+
+
+# ---------------------------------------------------------------- 卸载
+
+def dir_size(path):
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except Exception:
+                pass
+    return total
+
+
+def _uninstall():
+    import hou  # noqa: F401
+
+    pref = pref_dir()
+    tk = toolkit_dir()
+    pkg = os.path.join(pref, "packages", "mytoolkit.json")
+    inst = read_json(os.path.join(tk, INSTALLED_NAME), {}) or {}
+
+    # ---- 收集要删的东西
+    items = []          # [(显示名, 路径, 是否目录)]
+    if os.path.isdir(tk):
+        items.append(("工具集目录 %s/" % TOOLKIT_DIRNAME, tk, True))
+    if os.path.isfile(pkg):
+        items.append(("包配置 packages/mytoolkit.json", pkg, False))
+    # 只删当年我们自己拷过去的 shelf，bootstrap.shelf 必须留着
+    for name in (inst.get("shelves") or []):
+        if name.lower() == BOOTSTRAP_SHELF_NAME:
+            continue
+        p = os.path.join(pref, "toolbar", name)
+        if os.path.isfile(p):
+            items.append(("工具架 toolbar/%s" % name, p, False))
+
+    # 兼容：记录缺失但东西确实在目录里
+    if not items:
+        stray = os.path.join(pref, "toolbar", "My_Tool.shelf")
+        if os.path.isfile(stray):
+            items.append(("工具架 toolbar/My_Tool.shelf", stray, False))
+
+    if not items:
+        _msg("没有检测到已安装的工具集，不需要卸载。", buttons=("知道了",))
+        return
+
+    total = 0
+    lines = []
+    for desc, p, isdir in items:
+        sz = dir_size(p) if isdir else os.path.getsize(p)
+        total += sz
+        lines.append("· %s    %s" % (desc, human(sz)))
+
+    text = ("即将卸载阿龙工具集（v%s）\n\n%s\n\n共 %s\n\n"
+            "说明：\n"
+            "· 「阿龙工具」这个工具架会保留，随时能重新装回来\n"
+            "· 备份目录 .mytoolkit_backup 不会被删\n"
+            "· 卸载后需要重启 Houdini，工具架才会从界面消失\n\n"
+            "继续？" % (inst.get("version", "?"), "\n".join(lines), human(total)))
+
+    if _msg(text, buttons=("卸载", "取消"), default=1, close=1) != 0:
+        return
+
+    failed = []
+    for desc, p, isdir in items:
+        try:
+            if isdir:
+                shutil.rmtree(p)
+            else:
+                os.remove(p)
+        except Exception as e:
+            failed.append("%s  （%s）" % (desc, e))
+
+    status("MyToolkit：已卸载")
+    if failed:
+        _msg("有部分内容删不掉，多半正被 Houdini 占用：\n\n%s\n\n"
+             "重启 Houdini 之后再点一次卸载即可。" % "\n".join(failed),
+             buttons=("知道了",))
+    else:
+        _msg("已卸载工具集 v%s\n\n释放 %s\n\n"
+             "重启 Houdini 生效。想装回来时点「安装 / 更新工具集」就行。"
+             % (inst.get("version", "?"), human(total)), buttons=("好",))
+
+
+def uninstall_main():
+    """卸载入口，给工具架按钮调用。"""
+    try:
+        _uninstall()
+    except Exception as e:
+        import traceback
+        detail = traceback.format_exc()
+        try:
+            import hou
+            hou.ui.displayMessage("MyToolkit 卸载出错：\n\n%s" % e,
+                                  details=detail, buttons=("关闭",))
+        except Exception:
+            print(detail)
+
+
+def main():
+    """给工具架按钮调用的入口，异常一律弹窗显示，不抛 traceback。"""
+    try:
+        _main()
+    except Exception as e:
+        import traceback
+        detail = traceback.format_exc()
+        try:
+            import hou
+            hou.ui.displayMessage("MyToolkit 安装器出错：\n\n%s" % e,
+                                  details=detail, buttons=("关闭",))
+        except Exception:
+            print(detail)
+
+main()
+
+
+uninstall_main()
 ]]></script>
   </tool>
 </shelfDocument>

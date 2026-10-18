@@ -23,8 +23,11 @@ OUT = ROOT / "bootstrap.shelf"
 SHELF_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
 <shelfDocument>
   <!-- 自动生成，请勿手改。源文件：installer/installer.py（改完跑 tools/make_shelf.py） -->
+  <!-- 两个按钮各自内嵌一份完整代码，文件略大（约 37KB）是自包含的代价：
+       即使服务器上 installer.py 没了，只要这个 shelf 在就能装、能卸。 -->
   <toolshelf name="mytoolkit_bootstrap" label="阿龙工具">
     <memberTool name="mytoolkit_installer"/>
+    <memberTool name="mytoolkit_uninstaller"/>
   </toolshelf>
 
   <tool name="mytoolkit_installer" label="安装 / 更新工具集" icon="MISC_python">
@@ -32,6 +35,18 @@ SHELF_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
 首次使用会安装全部默认模块；之后每次点击会提示是否有更新。]]></helpText>
     <script scriptType="python"><![CDATA[
 {code}
+
+main()
+]]></script>
+  </tool>
+
+  <tool name="mytoolkit_uninstaller" label="卸载 / 清除工具集" icon="MISC_python">
+    <helpText><![CDATA[删除本地的 MyToolkit 目录、包配置和工具架文件。
+「阿龙工具」这个工具架本身会保留，卸载后随时可以重新装回来。]]></helpText>
+    <script scriptType="python"><![CDATA[
+{code}
+
+uninstall_main()
 ]]></script>
   </tool>
 </shelfDocument>

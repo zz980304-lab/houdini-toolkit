@@ -57,10 +57,13 @@ class _UI(object):
                        message=None, title=None, column_header="Choices",
                        num_visible_rows=10, clear_on_cancel=False,
                        width=0, height=0, sort=False, condense_paths=False):
-        print("\n[SELECT] %d 个选项（全选）" % len(choices))
+        # 按默认勾选返回（跟真实用户不改勾选时一致），
+        # 别全选 —— 全选会把 91MB 的 ffx 也下下来，跑一次要几分钟。
+        picked = tuple(default_choices) if default_choices else tuple(range(len(choices)))
+        print("\n[SELECT] %d 个选项，选中 %d 个" % (len(choices), len(picked)))
         for c in choices:
             print("         - " + str(c))
-        return tuple(range(len(choices)))
+        return picked
 
     def setStatusMessage(self, message, severity=None):
         print("[STATUS] " + str(message))
@@ -82,6 +85,7 @@ print("\n" + "#" * 60)
 print("# 第二次运行：应提示「已是最新」")
 print("#" * 60)
 installer.main()
+
 
 # ---------------------------------------------------------------- 检查
 
@@ -126,6 +130,23 @@ if os.path.isfile(inst):
     check("记录 core 版本", d.get("modules", {}).get("core"))
 
 check("第二次运行提示「已是最新」", "已是最新" in (hou.ui.dialogs[-1] if hou.ui.dialogs else ""))
+
+# ---------------------------------------------------------------- 卸载
+
+print("\n" + "#" * 60)
+print("# 卸载")
+print("#" * 60)
+installer.uninstall_main()
+
+# ---------- 卸载结果 ----------
+check("卸载：MyToolkit 目录已删除", not os.path.isdir(tk))
+check("卸载：packages/mytoolkit.json 已删除",
+      not os.path.isfile(os.path.join(PREF, "packages", "mytoolkit.json")))
+tb_left = [f for f in os.listdir(os.path.join(PREF, "toolbar"))
+           if f.lower().endswith(".shelf")] if os.path.isdir(os.path.join(PREF, "toolbar")) else []
+check("卸载：工具集拷入的 shelf 已删除（不应剩 My_Tool.shelf）",
+      "My_Tool.shelf" not in tb_left, "剩下 %s" % tb_left)
+check("卸载：提示里说了已卸载", "已卸载" in (hou.ui.dialogs[-1] if hou.ui.dialogs else ""))
 
 print("=" * 60)
 print("结果:", "全部通过" if ok else "有失败项")
