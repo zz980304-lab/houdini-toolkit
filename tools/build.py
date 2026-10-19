@@ -51,6 +51,20 @@ def match_any(name, patterns):
     return any(fnmatch.fnmatch(name, p) for p in patterns)
 
 
+def readable(path):
+    """能不能打开读。
+
+    Windows 上常碰到"文件被别的进程独占"（Houdini 索引文档、编辑器开着……），
+    这时 os.stat 正常但 open 直接 PermissionError。打包时为这种文件整个崩掉不值得
+    —— 跳过它、留一条醒目的日志，剩下的照常发。
+    """
+    try:
+        with open(path, "rb"):
+            return True
+    except Exception:                                          # noqa: BLE001
+        return False
+
+
 def collect(module):
     """把模块配置解析成 [(源文件 Path, zip 内相对路径), ...]"""
     items = []
@@ -87,6 +101,10 @@ def collect(module):
                 continue
             # 文件名包含
             if not match_any(p.name, includes):
+                continue
+            # 读不到（被独占）就跳过：宁可少发一个文件，也不要整个发布挂掉
+            if not readable(p):
+                log("  ! 文件被占用，读不到，本次跳过：%s" % p)
                 continue
 
             items.append((p, "%s/%s" % (dst, rel) if dst else rel))

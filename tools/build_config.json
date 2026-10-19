@@ -37,6 +37,33 @@
             ]
         },
         {
+            "id": "node-preset",
+            "name": "节点预设库（拖拽存节点 / 拼音搜索 / 自动更新）",
+            "default": true,
+            "enabled": true,
+            "_note": "library/ 是你的活数据（含 GIF），必须排除，绝不能进公开仓库",
+            "sources": [
+                { "src": "N:/Houdini_path/toolbar/node_preset",
+                  "dst": "toolbar/node_preset",
+                  "exclude": ["library", "_cache", "_backup", "_trash", ".update",
+                              "__pycache__", "*.pyc", "config.json", "*.bak",
+                              "*.npreset"] }
+            ]
+        },
+        {
+            "id": "hip-packer",
+            "name": "工程保存工具（打包含素材，一键带走工程）",
+            "default": true,
+            "enabled": true,
+            "_note": "My_Tool.shelf 里的「工程保存工具」按钮只负责找这个包；包没装 → 点按钮直接 ImportError",
+            "sources": [
+                { "src": "N:/Houdini_path/toolbar/hip_packer",
+                  "dst": "toolbar/hip_packer",
+                  "exclude": ["__pycache__", "*.pyc", "*.pyo", "backup",
+                              "_cache", "*.bak"] }
+            ]
+        },
+        {
             "id": "otls-misc",
             "name": "自收集 HDA / 节点库（不含 ql 与 ffx 大包）",
             "default": true,
