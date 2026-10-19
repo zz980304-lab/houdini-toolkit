@@ -52,5 +52,9 @@ curl -sS https://houdini-toolkit.pages.dev/manifest.json   # 3. 1~2 分钟后验
    `split_big_file` 切成 `.p000...` 段，安装器用 `.parts.json` 拼回。
 5. 不要修改 `N:/Houdini_path/` 下的源文件（那是用户的活数据）。
 6. 不要删 `dist/` 里的旧 zip，不要把 token / 密码写进任何文件。
+7. **新增任何工具目录，必须在 `build_config.json` 里注册成模块**。
+   `core` 只发 `*.shelf` + `python3.11libs` + `presets`，**不发 `toolbar/` 下的包**；
+   `My_Tool.shelf` 里的按钮只是"按 HOUDINI_PATH 找包"，包没发 → 别的电脑上点按钮
+   直接 `ImportError`。2026-10-20 就漏了 `hip_packer`（工程保存工具）和 `node_preset`。
 
 详细流程与故障处理见（仓库外）：`N:/Houdini_path/houdini_updata/05-日常维护/02-AI协作更新流程.md`
