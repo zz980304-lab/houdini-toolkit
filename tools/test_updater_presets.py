@@ -15,7 +15,6 @@ import os
 import shutil
 import sys
 import tempfile
-import types
 import zipfile
 
 TMP = tempfile.mkdtemp(prefix="np_updater_test_")
