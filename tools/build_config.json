@@ -52,6 +52,20 @@
             ]
         },
         {
+            "id": "preset-pack",
+            "name": "预设包（节点预设云同步）",
+            "default": true,
+            "enabled": true,
+            "_note": "把 library 活数据（p_* 预设 + catalog.json 文件夹组织）作为独立模块分发，别的机器点「安装/更新」就能拿到。安装是合并式：不会删当地自存的预设；catalog.json 会被云端版本覆盖（只影响文件夹分组，预设不丢）。⚠️ 语义变化：此前约定 library 绝不进公开仓库，2026-11-17 应用户要求改为独立发布——若仓库是 public 的，预设（含预览图）即公开可下载。",
+            "sources": [
+                { "src": "N:/Houdini_path/toolbar/node_preset/library",
+                  "dst": "toolbar/node_preset/library",
+                  "_note": "_backup/_cache/_trash 是本机运行数据，绝不进包",
+                  "exclude": ["_backup", "_cache", "_trash", ".update",
+                              "__pycache__", "*.pyc", "*.bak"] }
+            ]
+        },
+        {
             "id": "hip-packer",
             "name": "工程保存工具（打包含素材，一键带走工程）",
             "default": true,

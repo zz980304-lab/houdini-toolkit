@@ -128,6 +128,18 @@ if os.path.isfile(inst):
         d = json.load(f)
     print("     installed.json:", json.dumps(d, ensure_ascii=False))
     check("记录 core 版本", d.get("modules", {}).get("core"))
+    # 预设包（preset-pack）模块：装了就该把 library 原样落位
+    if "preset-pack" in (d.get("modules") or {}):
+        lib = os.path.join(tk, "toolbar", "node_preset", "library")
+        check("预设包：library 目录存在", os.path.isdir(lib))
+        check("预设包：catalog.json 落位",
+              os.path.isfile(os.path.join(lib, "catalog.json")))
+        p_dirs = [n for n in (os.listdir(lib) if os.path.isdir(lib) else [])
+                  if n.startswith("p_") and os.path.isdir(os.path.join(lib, n))]
+        check("预设包：p_* 预设已落位（%d 个）" % len(p_dirs), len(p_dirs) > 0)
+        check("预设包：运行数据目录没进包（无 _cache/_backup/_trash）",
+              not any(os.path.isdir(os.path.join(lib, n))
+                      for n in ("_cache", "_backup", "_trash")))
 
 check("第二次运行提示「已是最新」", "已是最新" in (hou.ui.dialogs[-1] if hou.ui.dialogs else ""))
 

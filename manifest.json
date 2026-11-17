@@ -1,9 +1,10 @@
 {
     "toolkit": "MyToolkit",
-    "version": "1.0.3",
-    "updated": "2026-11-17T18:34:12+08:00",
+    "version": "1.0.4",
+    "updated": "2026-11-17T19:22:08+08:00",
     "min_houdini": "19.5",
     "changelog": [
+        "1.0.4 更新：节点预设库（拖拽存节点 / 拼音搜索 / 自动更新） v1.0.2、预设包（节点预设云同步） v1.0.0",
         "1.0.3 更新：核心工具（工具架 + Python + 预设） v1.0.3、节点预设库（拖拽存节点 / 拼音搜索 / 自动更新） v1.0.1、工程保存工具（打包含素材，一键带走工程） v1.0.1",
         "1.0.2 更新：核心工具（工具架 + Python + 预设） v1.0.2、节点预设库（拖拽存节点 / 拼音搜索 / 自动更新） v1.0.0、工程保存工具（打包含素材，一键带走工程） v1.0.0",
         "1.0.1 更新：核心工具（工具架 + Python + 预设） v1.0.1、自收集 HDA / 节点库（不含 ql 与 ffx 大包） v1.0.0、ffx 节点集（91MB 黑盒包，装一次基本不动） v1.0.0、ql 节点库（约 200 个） v1.0.0",
@@ -27,14 +28,28 @@
         {
             "id": "node-preset",
             "name": "节点预设库（拖拽存节点 / 拼音搜索 / 自动更新）",
-            "version": "1.0.1",
+            "version": "1.0.2",
             "default": true,
-            "content_hash": "59d5827cbf2fa1825c2258122bd3ce63f29adbf42c7b4eca21e50c78341eba51",
+            "content_hash": "ba5b2baf27e7bbc78647285dd564ed5f7d401d90ec502cd5aa26134d66f6e4ba",
             "parts": [
                 {
-                    "url": "dist/node-preset-1.0.1.zip",
-                    "size": 924396,
-                    "sha256": "13003c25376669245e9ce2dddbb7f55d7e523a3c456e0f3d4ab7c6d9c5b45915"
+                    "url": "dist/node-preset-1.0.2.zip",
+                    "size": 926071,
+                    "sha256": "f6b37ae0c2de036c3dbb67c32ae58f6c4adfc6b292c771ad3f6f51a92bd506b2"
+                }
+            ]
+        },
+        {
+            "id": "preset-pack",
+            "name": "预设包（节点预设云同步）",
+            "version": "1.0.0",
+            "default": true,
+            "content_hash": "8a07219f96833abab955a73a0743fb7627ccb3874b6abd43f0f1b150136381f5",
+            "parts": [
+                {
+                    "url": "dist/preset-pack-1.0.0.zip",
+                    "size": 153110,
+                    "sha256": "fe126d8dabf4ed2f16bc0b09d8c918cae2f53fd7b36d6eb0f38faef90b704b7d"
                 }
             ]
         },
