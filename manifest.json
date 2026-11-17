@@ -1,9 +1,10 @@
 {
     "toolkit": "MyToolkit",
-    "version": "1.0.4",
-    "updated": "2026-11-17T19:22:08+08:00",
+    "version": "1.0.5",
+    "updated": "2026-11-17T20:39:58+08:00",
     "min_houdini": "19.5",
     "changelog": [
+        "1.0.5 更新：节点预设库（拖拽存节点 / 拼音搜索 / 自动更新） v1.0.3",
         "1.0.4 更新：节点预设库（拖拽存节点 / 拼音搜索 / 自动更新） v1.0.2、预设包（节点预设云同步） v1.0.0",
         "1.0.3 更新：核心工具（工具架 + Python + 预设） v1.0.3、节点预设库（拖拽存节点 / 拼音搜索 / 自动更新） v1.0.1、工程保存工具（打包含素材，一键带走工程） v1.0.1",
         "1.0.2 更新：核心工具（工具架 + Python + 预设） v1.0.2、节点预设库（拖拽存节点 / 拼音搜索 / 自动更新） v1.0.0、工程保存工具（打包含素材，一键带走工程） v1.0.0",
@@ -28,14 +29,14 @@
         {
             "id": "node-preset",
             "name": "节点预设库（拖拽存节点 / 拼音搜索 / 自动更新）",
-            "version": "1.0.2",
+            "version": "1.0.3",
             "default": true,
-            "content_hash": "ba5b2baf27e7bbc78647285dd564ed5f7d401d90ec502cd5aa26134d66f6e4ba",
+            "content_hash": "91c80d6e0f1bc714a2307f9cc281d4a95c0f3390ce999504fa23014511a9421f",
             "parts": [
                 {
-                    "url": "dist/node-preset-1.0.2.zip",
-                    "size": 926071,
-                    "sha256": "f6b37ae0c2de036c3dbb67c32ae58f6c4adfc6b292c771ad3f6f51a92bd506b2"
+                    "url": "dist/node-preset-1.0.3.zip",
+                    "size": 926605,
+                    "sha256": "8623c53ae56a6987b55834ec805d8a5a443be9bf9672c4cc0b2bc2435a589d2d"
                 }
             ]
         },

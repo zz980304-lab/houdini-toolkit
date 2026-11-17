@@ -95,6 +95,54 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+def _version_tuple(text):
+    """'1.10.2' → (1, 10, 2)。缺段补 0，非数字段按 0 算。"""
+    parts = []
+    for chunk in str(text or "0").split("."):
+        digits = "".join(ch for ch in chunk if ch.isdigit())
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts)
+
+
+def _node_preset_library_dir():
+    """节点预设库的 library 目录（照 node_preset/paths.py 的解析顺序：
+    环境变量 HOUDINI_NODE_PRESET_DIR → config.json 的 library_dir → 兜底），
+    用来找预设库更新器的版本记录。"""
+    env = os.environ.get("HOUDINI_NODE_PRESET_DIR")
+    if env:
+        return os.path.normpath(os.path.expandvars(os.path.expanduser(env)))
+    cfg = read_json(os.path.join(
+        toolkit_dir(), "toolbar", "node_preset", "config.json")) or {}
+    value = cfg.get("library_dir")
+    if value:
+        return os.path.normpath(os.path.expandvars(os.path.expanduser(str(value))))
+    return os.path.join(toolkit_dir(), "toolbar", "node_preset", "library")
+
+
+def effective_module_versions(installed):
+    """本机各模块的有效版本 = bootstrap 记录和预设库更新器记录里**更新的那个**。
+
+    两个更新器各记各的版本（MyToolkit/installed.json 和
+    <library>/.update/installed.json）。只看一边就会打架：
+    用 A 更新过之后，B 又提示一遍同样的更新，来回 ping-pong，
+    用户永远搞不清自己是不是最新 —— 这是实测过的坑。
+    """
+    versions = {}
+    for mid, ver in ((installed or {}).get("modules") or {}).items():
+        versions[str(mid)] = str(ver or "")
+    record = read_json(os.path.join(
+        _node_preset_library_dir(), ".update", "installed.json")) or {}
+    for mid, entry in (record or {}).items():
+        if isinstance(entry, dict):
+            ver = str(entry.get("version") or "")
+        else:
+            ver = str(entry or "")
+        old = versions.get(str(mid), "")
+        if ver and (not old or _version_tuple(ver) > _version_tuple(old)):
+            versions[str(mid)] = ver
+    return versions
+
+
 def _opener():
     """直连：显式清空代理（系统里有失效的 http_proxy 环境变量）。"""
     return urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -400,7 +448,9 @@ def install_from(tmp_dir, module_files, installed, manifest, wanted_ids):
                 copied_shelves.append(fn)
 
     # ---- 本地版本记录
-    versions = dict(installed.get("modules", {}))
+    # 种子用两边记录的最大值：把预设库更新器记的较新版本也吸收进来，
+    # 两边从此对齐（这正是"更新完又提示更新"的根治点）
+    versions = effective_module_versions(installed)
     for m in manifest.get("modules", []):
         if m["id"] in wanted_ids:
             versions[m["id"]] = m["version"]
@@ -433,7 +483,8 @@ def _main():
 
     installed = read_json(os.path.join(toolkit_dir(), INSTALLED_NAME), {}) or {}
     local_ver = installed.get("version")
-    local_mods = installed.get("modules", {})
+    # 两边更新器各记各的版本，取更新的那个（见 effective_module_versions）
+    local_mods = effective_module_versions(installed)
 
     status("MyToolkit：正在检查更新…")
     try:
@@ -444,6 +495,15 @@ def _main():
         return
 
     remote_ver = manifest.get("version", "?")
+
+    # ---- 线上清单比本机旧：镜像缓存了旧 manifest，别把用户往回带
+    if local_ver and _version_tuple(remote_ver) < _version_tuple(local_ver):
+        _msg("线上清单（v%s）比本机（v%s）旧。\n\n"
+             "多半是镜像缓存了旧版清单（GitHub Pages / jsdelivr 有缓存延迟），\n"
+             "等几分钟再点就好。本机代码没有被降级，不用担心。"
+             % (remote_ver, local_ver), buttons=("知道了",))
+        return
+
     wanted = []
 
     if not local_ver:
@@ -457,15 +517,21 @@ def _main():
         # 否则用户第一次只勾了默认模块，之后每次点击都会被提示
         # "发现更新：ffx 新增 v1.0.0"，而那 91MB 他根本没要过。
         # 例外：新出现的、标记为 default 的模块会提示一次；
-        # 用户若点了取消，就记进 dismissed，以后不再提。
-        dismissed = set(installed.get("dismissed") or [])
+        # 用户点了取消就记下当时拒掉的版本号，那个版本不再提，
+        # 但以后出了新版本还会提（老实现是记名字永久不提，太死）。
+        raw = installed.get("dismissed") or {}
+        if isinstance(raw, (list, tuple)):
+            dismissed = {str(i): "" for i in raw}    # 老格式：只有名字
+        else:
+            dismissed = dict(raw or {})
         todo = []
         for m in manifest.get("modules", []):
             cur = local_mods.get(m["id"])
             if cur is None:
-                if m.get("default") and m["id"] not in dismissed:
+                if m.get("default") and dismissed.get(m["id"]) != m["version"]:
                     todo.append((m, None))
-            elif cur != m["version"]:
+            elif _version_tuple(m["version"]) > _version_tuple(cur):
+                # 只往上走，不往回退（cur 比 remote 新的一律安静）
                 todo.append((m, cur))
         if not todo:
             r = _msg("已是最新版本 v%s\n更新于 %s"
@@ -488,12 +554,16 @@ def _main():
             r = _msg("\n".join(lines), buttons=("更新", "取消", "更新日志"),
                      default=0, close=1)
             if r == 1:
-                # 点取消：把"新增但还没装"的模块记下来，下次不再提醒
+                # 点取消：把"新增但还没装"的模块连同当时拒掉的版本号记下来，
+                # 这个版本不再提；以后出新版本还会提。
                 skipped = [m["id"] for m, cur in todo if cur is None]
                 if skipped:
                     try:
                         rec = read_json(os.path.join(toolkit_dir(), INSTALLED_NAME), {}) or {}
-                        rec["dismissed"] = sorted(dismissed | set(skipped))
+                        module_by_id = {m["id"]: m for m in manifest.get("modules", [])}
+                        for mid in skipped:
+                            dismissed[mid] = str((module_by_id.get(mid) or {}).get("version") or "")
+                        rec["dismissed"] = dismissed
                         write_json(os.path.join(toolkit_dir(), INSTALLED_NAME), rec)
                     except Exception:
                         pass

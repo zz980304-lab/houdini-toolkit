@@ -86,6 +86,20 @@ print("# 第二次运行：应提示「已是最新」")
 print("#" * 60)
 installer.main()
 
+print("\n" + "#" * 60)
+print("# 第三次运行：两个更新器的版本记录不同步（那个「反复提示更新」")
+print("# 的 bug 场景）——预设库更新器把 node-preset 升到了 9.9.9，")
+print("# bootstrap 自己的记录还在老版本。安装器必须取两边最大值，")
+print("# 而不是再提示一遍更新/降级。")
+print("#" * 60)
+tk = os.path.join(PREF, installer.TOOLKIT_DIRNAME)
+np_rec = os.path.join(tk, "toolbar", "node_preset", "library", ".update", "installed.json")
+os.makedirs(os.path.dirname(np_rec), exist_ok=True)
+with open(np_rec, "w", encoding="utf-8") as f:
+    json.dump({"node-preset": {"version": "9.9.9",
+                               "installed": "2026-11-17 00:00:00"}}, f)
+installer.main()
+
 
 # ---------------------------------------------------------------- 检查
 
@@ -101,7 +115,6 @@ def check(label, cond, extra=""):
         ok = False
 
 
-tk = os.path.join(PREF, installer.TOOLKIT_DIRNAME)
 check("MyToolkit 目录存在", os.path.isdir(tk))
 check("toolbar/My_Tool.shelf",
       os.path.isfile(os.path.join(tk, "toolbar", "My_Tool.shelf")))
@@ -142,6 +155,11 @@ if os.path.isfile(inst):
                       for n in ("_cache", "_backup", "_trash")))
 
 check("第二次运行提示「已是最新」", "已是最新" in (hou.ui.dialogs[-1] if hou.ui.dialogs else ""))
+
+# 第三次运行：记录不同步时，不能提示更新/降级（取两边最大值）
+third_last = hou.ui.dialogs[-1] if hou.ui.dialogs else ""
+check("第三次运行（记录不同步）不提示更新", "发现更新" not in third_last, third_last[:60])
+check("第三次运行仍认为已是最新", "已是最新" in third_last)
 
 # ---------------------------------------------------------------- 卸载
 

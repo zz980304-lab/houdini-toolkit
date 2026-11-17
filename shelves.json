@@ -1,9 +1,9 @@
 [
     {
         "author": "阿龙",
-        "description": "一键安装 / 更新的 Houdini 工具集。下载后工具架里会出现「阿龙工具」，点按钮即可装齐工具架、Python 模块与预设，之后每次点击自动检查更新。\n\n当前版本 v1.0.4（更新于 2026-11-17 19:22）",
+        "description": "一键安装 / 更新的 Houdini 工具集。下载后工具架里会出现「阿龙工具」，点按钮即可装齐工具架、Python 模块与预设，之后每次点击自动检查更新。\n\n当前版本 v1.0.5（更新于 2026-11-17 20:39）",
         "fileURL": "https://zz980304-lab.github.io/houdini-toolkit/bootstrap.shelf",
-        "lastModified": "2026-11-17 19:22:08",
+        "lastModified": "2026-11-17 20:39:58",
         "name": "阿龙工具",
         "version": 1,
         "thumbnailURL": "https://zz980304-lab.github.io/houdini-toolkit/icon.png"
