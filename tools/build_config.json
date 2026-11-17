@@ -45,9 +45,10 @@
             "sources": [
                 { "src": "N:/Houdini_path/toolbar/node_preset",
                   "dst": "toolbar/node_preset",
+                  "_note": "*.md 是内部维护文档（白皮书/规划），不发到公开包里",
                   "exclude": ["library", "_cache", "_backup", "_trash", ".update",
                               "__pycache__", "*.pyc", "config.json", "*.bak",
-                              "*.npreset"] }
+                              "*.npreset", "*.md"] }
             ]
         },
         {
@@ -59,8 +60,9 @@
             "sources": [
                 { "src": "N:/Houdini_path/toolbar/hip_packer",
                   "dst": "toolbar/hip_packer",
+                  "_note": "代码说明书.md 是内部维护文档；README.txt 留给使用者",
                   "exclude": ["__pycache__", "*.pyc", "*.pyo", "backup",
-                              "_cache", "*.bak"] }
+                              "_cache", "*.bak", "代码说明书.md"] }
             ]
         },
         {

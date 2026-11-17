@@ -12,6 +12,7 @@
     <memberTool name="ABC_Import"/>
     <memberTool name="Hip_Packer_Open"/>
     <memberTool name="Sync_Box_Bundles"/>
+    <memberTool name="Node_Preset_Open"/>
   </toolshelf>
 
   <tool name="Axiom_creak" label="Axiom 破解" icon="opdef:/Sop/axiom_solver::3.2?IconImage">
@@ -26,7 +27,16 @@ plan = hou.ui.paneTabOfType(hou.paneTabType.NetworkEditor)
 node = plan.pwd()
 path = node.path()
 
-res =  float(hou.ui.readInput('精度')[1])
+_ans = hou.ui.readInput('精度')[1]
+try:
+    res = float(_ans)
+except (TypeError, ValueError):
+    # 点了取消（None）或输入的不是数字：提示并退出，别让 TypeError
+    # 从半路炸出来（那时节点已经建了一半，留个烂摊子）
+    hou.ui.setStatusMessage('已取消 / 不是数字，没有创建节点',
+                            severity=hou.severityType.Warning)
+    import sys
+    sys.exit()
 
 sopsolver = node.createNode("sopsolver::2.0","vdb_smooth_vel")
 sopsolver.parm("doinvoke").set(1)
@@ -251,4 +261,65 @@ nb = _load()
 nb.sync_all_msg()]]></script>
   </tool>
 
+  <tool name="Node_Preset_Open" label="节点预设库" icon="node_preset">
+    <script scriptType="python"><![CDATA[import os
+import sys
+
+# 按 HOUDINI_PATH 相对查找工具目录，不写死盘符：换机器 / 换盘都能用。
+# 工具本体在 <任意 HOUDINI_PATH 目录>/toolbar/node_preset/node_preset/
+def _find_tool():
+    try:
+        import hou
+        roots = hou.getenv("HOUDINI_PATH") or ""
+    except Exception:
+        roots = ""
+    roots = roots or os.environ.get("HOUDINI_PATH", "")
+    for root in roots.split(os.pathsep):
+        for rel in ("toolbar/node_preset", "python3.11libs/node_preset"):
+            cand = os.path.join(root, rel)
+            if os.path.isfile(os.path.join(cand, "node_preset", "__init__.py")):
+                return cand
+    return None
+
+_root = _find_tool()
+if _root and _root not in sys.path:
+    sys.path.insert(0, _root)
+
+# 工具架图标：XML 里写的是 icon="node_preset"，Houdini 只认放在
+# <用户配置>/config/Icons/ 下的同名 svg。第一次跑（或换机器 / 升级 Houdini）
+# 时把这边的 icon.svg 拷过去，图标就不会变成空白。
+def _ensure_icon():
+    try:
+        import hou
+        import shutil
+        src = os.path.join(_root or "", "icon.svg")
+        pref = hou.getenv("HOUDINI_USER_PREF_DIR") or ""
+        dst_dir = os.path.join(pref, "config", "Icons") if pref else ""
+        if not os.path.isfile(src) or not dst_dir:
+            return
+        if not os.path.isdir(dst_dir):
+            os.makedirs(dst_dir)
+        dst = os.path.join(dst_dir, "node_preset.svg")
+        if (not os.path.isfile(dst)
+                or os.path.getmtime(src) > os.path.getmtime(dst)):
+            shutil.copy2(src, dst)
+    except Exception:
+        pass
+
+
+_ensure_icon()
+
+# Houdini 的 Python 会话是常驻的：改了磁盘上的代码它不会自己重新读，
+# 每次点按钮先把旧模块踢掉，保证用的是最新版本。
+try:
+    import node_preset
+    node_preset.reload_package()
+except Exception:
+    for _k in [k for k in sys.modules
+               if k == "node_preset" or k.startswith("node_preset.")]:
+        sys.modules.pop(_k, None)
+
+from node_preset import show
+show()]]></script>
+  </tool>
 </shelfDocument>

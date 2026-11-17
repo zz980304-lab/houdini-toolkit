@@ -559,6 +559,31 @@ def dir_size(path):
     return total
 
 
+def _rescue_library(pref, tk):
+    """卸载前把用户的预设库从 MyToolkit 里搬出来。
+
+    library/（节点预设库的活数据）就住在 MyToolkit/toolbar/node_preset/
+    下面，卸载直接 rmtree 会连它一起删掉。返回 (搬去的目录, 里面有没有预设)：
+
+        ("", False)   没有库 / 库是空的（没有 p_* 目录）→ 放心删
+        (dst, True)   库搬好了，在 pref 下的 dst
+        ("", True)    有预设但搬不动（文件被占用）→ **绝不能删工具目录**
+    """
+    src = os.path.join(tk, "toolbar", "node_preset", "library")
+    if not os.path.isdir(src):
+        return "", False
+    if not any(name.startswith("p_")
+               and os.path.isdir(os.path.join(src, name))
+               for name in os.listdir(src)):
+        return "", False
+    dst = os.path.join(pref, "MyToolkit_library_%s" % time.strftime("%Y%m%d_%H%M%S"))
+    try:
+        shutil.move(src, dst)
+        return dst, True
+    except Exception:
+        return "", True
+
+
 def _uninstall():
     import hou  # noqa: F401
 
@@ -608,8 +633,16 @@ def _uninstall():
     if _msg(text, buttons=("卸载", "取消"), default=1, close=1) != 0:
         return
 
+    # ---- 先把预设库抢救出来，再动手删（见 _rescue_library 的说明）
+    rescued_dir, has_presets = _rescue_library(pref, tk)
+
     failed = []
     for desc, p, isdir in items:
+        if has_presets and not rescued_dir and isdir:
+            # 里面有用户的预设又搬不出来：这一条不删。宁可卸载不干净，
+            # 也不能把用户的预设库毁掉。
+            failed.append("%s  （里面有预设库且搬不出来，为保数据跳过删除）" % desc)
+            continue
         try:
             if isdir:
                 shutil.rmtree(p)
@@ -619,14 +652,18 @@ def _uninstall():
             failed.append("%s  （%s）" % (desc, e))
 
     status("MyToolkit：已卸载")
+    rescued_tip = ("\n\n预设库已保留在：\n%s\n（重新安装后可在「节点预设库」"
+                   "设置的 library_dir 里指回它）" % rescued_dir) if rescued_dir else ""
     if failed:
         _msg("有部分内容删不掉，多半正被 Houdini 占用：\n\n%s\n\n"
-             "重启 Houdini 之后再点一次卸载即可。" % "\n".join(failed),
+             "重启 Houdini 之后再点一次卸载即可。%s" % ("\n".join(failed), rescued_tip),
              buttons=("知道了",))
     else:
-        _msg("已卸载工具集 v%s\n\n释放 %s\n\n"
-             "重启 Houdini 生效。想装回来时点「安装 / 更新工具集」就行。"
-             % (inst.get("version", "?"), human(total)), buttons=("好",))
+        _msg("已卸载工具集 v%s\n\n释放 %s\n\n%s%s"
+             % (inst.get("version", "?"), human(total),
+                "重启 Houdini 生效。想装回来时点「安装 / 更新工具集」就行。",
+                rescued_tip),
+             buttons=("好",))
 
 
 def uninstall_main():

@@ -1,9 +1,10 @@
 {
     "toolkit": "MyToolkit",
-    "version": "1.0.2",
-    "updated": "2026-10-20T01:52:49+08:00",
+    "version": "1.0.3",
+    "updated": "2026-11-17T18:34:12+08:00",
     "min_houdini": "19.5",
     "changelog": [
+        "1.0.3 更新：核心工具（工具架 + Python + 预设） v1.0.3、节点预设库（拖拽存节点 / 拼音搜索 / 自动更新） v1.0.1、工程保存工具（打包含素材，一键带走工程） v1.0.1",
         "1.0.2 更新：核心工具（工具架 + Python + 预设） v1.0.2、节点预设库（拖拽存节点 / 拼音搜索 / 自动更新） v1.0.0、工程保存工具（打包含素材，一键带走工程） v1.0.0",
         "1.0.1 更新：核心工具（工具架 + Python + 预设） v1.0.1、自收集 HDA / 节点库（不含 ql 与 ffx 大包） v1.0.0、ffx 节点集（91MB 黑盒包，装一次基本不动） v1.0.0、ql 节点库（约 200 个） v1.0.0",
         "1.0.0 更新：核心工具（工具架 + Python + 预设） v1.0.0"
@@ -12,42 +13,42 @@
         {
             "id": "core",
             "name": "核心工具（工具架 + Python + 预设）",
-            "version": "1.0.2",
+            "version": "1.0.3",
             "default": true,
-            "content_hash": "07e37741584e6699aec76772c9fd2f57e72bf94012aeb2b9580ffb0890de1261",
+            "content_hash": "4b16b6ac2e9b1146bda6e1c010311833040350e40c2f9b50b52a6e852ee5fddc",
             "parts": [
                 {
-                    "url": "dist/core-1.0.2.zip",
-                    "size": 19367,
-                    "sha256": "7e1078e7d5cd1bc36516f7155c91758fe1bb1b5c8d0aeb43ed80433690c62bf1"
+                    "url": "dist/core-1.0.3.zip",
+                    "size": 19602,
+                    "sha256": "e3520fd474c513baa17298cb7176f7236ed0560fc7b25b2b5400caf0d743d90d"
                 }
             ]
         },
         {
             "id": "node-preset",
             "name": "节点预设库（拖拽存节点 / 拼音搜索 / 自动更新）",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "default": true,
-            "content_hash": "99db34ba6e8208fc952e4c7829db90e5d5a6eb5f97be8a80165b1cfa928d3430",
+            "content_hash": "59d5827cbf2fa1825c2258122bd3ce63f29adbf42c7b4eca21e50c78341eba51",
             "parts": [
                 {
-                    "url": "dist/node-preset-1.0.0.zip",
-                    "size": 935942,
-                    "sha256": "806e342065858cc1cc10ec2373e585ba73ff1968f685d5a8431d47e1e81163ba"
+                    "url": "dist/node-preset-1.0.1.zip",
+                    "size": 924396,
+                    "sha256": "13003c25376669245e9ce2dddbb7f55d7e523a3c456e0f3d4ab7c6d9c5b45915"
                 }
             ]
         },
         {
             "id": "hip-packer",
             "name": "工程保存工具（打包含素材，一键带走工程）",
-            "version": "1.0.0",
+            "version": "1.0.1",
             "default": true,
-            "content_hash": "3508b3f04633c27d77fe18e261efde662a2ab0010cf5026fe1d0beba2a4cb0db",
+            "content_hash": "4b51299b636e4c0c2c042674fe9f0e6e73c973f1ab84cf09db870043998952b7",
             "parts": [
                 {
-                    "url": "dist/hip-packer-1.0.0.zip",
-                    "size": 113061,
-                    "sha256": "9af463d2a15549d3ed911e81ec52b887d104f6bc559482cce129582652cce4c3"
+                    "url": "dist/hip-packer-1.0.1.zip",
+                    "size": 76957,
+                    "sha256": "8906455401c950740d138857c3731caeb5f0b2e6f282610a60a2037eec000278"
                 }
             ]
         },

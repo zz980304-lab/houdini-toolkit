@@ -136,9 +136,22 @@ check("第二次运行提示「已是最新」", "已是最新" in (hou.ui.dialo
 print("\n" + "#" * 60)
 print("# 卸载")
 print("#" * 60)
+
+# 先造一个带预设的 library（模拟用户存了预设再卸载的场景），
+# 验证卸载时它会被"抢救"到 pref 下，而不是跟着 MyToolkit 一起被删。
+lib_preset = os.path.join(tk, "toolbar", "node_preset", "library", "p_test123")
+os.makedirs(lib_preset)
+with open(os.path.join(lib_preset, "meta.json"), "w", encoding="utf-8") as f:
+    json.dump({"name": "测试预设"}, f)
+
 installer.uninstall_main()
 
 # ---------- 卸载结果 ----------
+rescued = [d for d in os.listdir(PREF) if d.startswith("MyToolkit_library_")]
+check("卸载：预设库被搬到 pref 下保留", len(rescued) == 1)
+if rescued:
+    _inner = os.listdir(os.path.join(PREF, rescued[0]))
+    check("卸载：抢救出来的库里有预设", "p_test123" in _inner, _inner)
 check("卸载：MyToolkit 目录已删除", not os.path.isdir(tk))
 check("卸载：packages/mytoolkit.json 已删除",
       not os.path.isfile(os.path.join(PREF, "packages", "mytoolkit.json")))
