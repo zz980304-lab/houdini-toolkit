@@ -138,6 +138,32 @@ if os.path.isfile(inst):
     print("        记录:", json.dumps(data.get("modules"), ensure_ascii=False))
     check("记录了 node-preset 版本", data.get("modules", {}).get("node-preset"))
 
+# ---------------------------------------------------------------- ensure_python_libs 回归
+# 之前的坑：python_libs_name() 生成 python311libs（少个点），PY_LIBS_RE 又
+# 匹配不到带点的真实目录 python3.11libs，结果函数永远 no-op、从没补建过。
+# 这里同时验证「认得带点目录」和「版本不符时真能补建」。用独立临时目录，
+# 不污染上面的安装目录。
+print("\n=== ensure_python_libs 回归 ===")
+_libs_tmp = tempfile.mkdtemp(prefix="h21_libs_")
+os.makedirs(os.path.join(_libs_tmp, "python3.11libs"))
+with open(os.path.join(_libs_tmp, "python3.11libs", "probe.py"), "w", encoding="utf-8") as _f:
+    _f.write("# probe\n")
+check("python_libs_name 返回带点目录名",
+      installer.python_libs_name() == "python%d.%dlibs" % sys.version_info[:2])
+check("PY_LIBS_RE 认得 python3.11libs",
+      bool(installer.PY_LIBS_RE.match("python3.11libs")))
+check("已有匹配目录时不重复补建", installer.ensure_python_libs(_libs_tmp) == "")
+_real_name = installer.python_libs_name
+installer.python_libs_name = lambda: "python3.12libs"   # 模拟未来 Houdini 换 Python 版本
+try:
+    _made = installer.ensure_python_libs(_libs_tmp)
+finally:
+    installer.python_libs_name = _real_name
+check("版本不符时真能补建 python3.12libs", _made == "python3.12libs")
+check("补建的目录带上了模块文件",
+      os.path.isfile(os.path.join(_libs_tmp, "python3.12libs", "probe.py")))
+shutil.rmtree(_libs_tmp, ignore_errors=True)
+
 # ---------------------------------------------------------------- 从安装目录加载 UI
 print("\n=== 从安装出来的代码加载 UI（真 PySide6）===")
 for p in (os.path.join(tk, "toolbar", "node_preset"),

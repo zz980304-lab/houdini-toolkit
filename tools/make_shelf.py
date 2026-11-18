@@ -65,7 +65,11 @@ def main():
         "",
         code,
     )
-    code = code.rstrip() + "\n\nmain()\n"
+    # 不要在这里追加 main()：下面的模板里每个按钮各自追加一次
+    # （安装按钮 -> main()，卸载按钮 -> uninstall_main()）。
+    # 曾经这里多写了一次 main()，导致安装按钮跑两遍、卸载按钮先跑
+    # 一遍安装/更新再卸载。code 只放函数定义，调用交给模板。
+    code = code.rstrip() + "\n"
 
     if "]]>" in code:
         raise SystemExit("installer.py 里出现了 ]]> ，会破坏 CDATA 包裹，请改写")

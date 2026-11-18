@@ -56,12 +56,16 @@ def toolkit_dir():
     return os.path.join(pref_dir(), TOOLKIT_DIRNAME)
 
 
-PY_LIBS_RE = re.compile(r"^python(\d)(\d+)libs$")
+PY_LIBS_RE = re.compile(r"^python(\d+)\.(\d+)libs$")
 
 
 def python_libs_name():
-    """当前 Houdini 认的 Python 模块目录名，形如 python3.11libs。"""
-    return "python%d%dlibs" % sys.version_info[:2]
+    """当前 Houdini 认的 Python 模块目录名，形如 python3.11libs。
+
+    中间那个点是必须的：Houdini 按「主版本.次版本」去找模块目录，
+    写成 python311libs 它根本不认，等于模块凭空消失。
+    """
+    return "python%d.%dlibs" % sys.version_info[:2]
 
 
 def ensure_python_libs(root=None):
