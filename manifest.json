@@ -1,9 +1,10 @@
 {
     "toolkit": "MyToolkit",
-    "version": "1.0.5",
-    "updated": "2026-11-17T20:39:58+08:00",
+    "version": "1.0.6",
+    "updated": "2026-11-18T14:01:32+08:00",
     "min_houdini": "19.5",
     "changelog": [
+        "1.0.6 更新：节点预设库（拖拽存节点 / 拼音搜索 / 自动更新） v1.0.4、工程保存工具（打包含素材，一键带走工程） v1.0.2",
         "1.0.5 更新：节点预设库（拖拽存节点 / 拼音搜索 / 自动更新） v1.0.3",
         "1.0.4 更新：节点预设库（拖拽存节点 / 拼音搜索 / 自动更新） v1.0.2、预设包（节点预设云同步） v1.0.0",
         "1.0.3 更新：核心工具（工具架 + Python + 预设） v1.0.3、节点预设库（拖拽存节点 / 拼音搜索 / 自动更新） v1.0.1、工程保存工具（打包含素材，一键带走工程） v1.0.1",
@@ -29,14 +30,14 @@
         {
             "id": "node-preset",
             "name": "节点预设库（拖拽存节点 / 拼音搜索 / 自动更新）",
-            "version": "1.0.3",
+            "version": "1.0.4",
             "default": true,
-            "content_hash": "91c80d6e0f1bc714a2307f9cc281d4a95c0f3390ce999504fa23014511a9421f",
+            "content_hash": "210d60333c13d0074e4c12268640e6c65f138d85d400f4960b8f6679a4d6eef0",
             "parts": [
                 {
-                    "url": "dist/node-preset-1.0.3.zip",
-                    "size": 926605,
-                    "sha256": "8623c53ae56a6987b55834ec805d8a5a443be9bf9672c4cc0b2bc2435a589d2d"
+                    "url": "dist/node-preset-1.0.4.zip",
+                    "size": 926919,
+                    "sha256": "323e3808dfc7ba67c626e66e4debc3cea7c5db0ae4304a48d4f9a186e6b15f9b"
                 }
             ]
         },
@@ -57,14 +58,14 @@
         {
             "id": "hip-packer",
             "name": "工程保存工具（打包含素材，一键带走工程）",
-            "version": "1.0.1",
+            "version": "1.0.2",
             "default": true,
-            "content_hash": "4b51299b636e4c0c2c042674fe9f0e6e73c973f1ab84cf09db870043998952b7",
+            "content_hash": "4bec543afe276a05339845d23c867d5e8f6b15cf3e9a37daa71f6539375572e5",
             "parts": [
                 {
-                    "url": "dist/hip-packer-1.0.1.zip",
-                    "size": 76957,
-                    "sha256": "8906455401c950740d138857c3731caeb5f0b2e6f282610a60a2037eec000278"
+                    "url": "dist/hip-packer-1.0.2.zip",
+                    "size": 77323,
+                    "sha256": "0c663a897af6946b4fa3bdc0e92a26d73311509d1af1ba0db4e579e34265cfa9"
                 }
             ]
         },

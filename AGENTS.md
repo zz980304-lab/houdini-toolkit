@@ -36,6 +36,8 @@ curl -sS https://houdini-toolkit.pages.dev/manifest.json   # 3. 1~2 分钟后验
 | `tools/build_config.json` | 模块划分、打包源、排除规则 |
 | `tools/release.py` | 一键发布（含网络通道自动探测） |
 | `tools/selftest.py` | 离线自测，mock 的 hou API 用真实签名 |
+| `tools/test_qt_bindings.py` | Qt 双绑定冒烟：同一套用例跑 PySide2(Qt5) 与 PySide6(Qt6) |
+| `tools/test_h21_install.py` | Houdini 21 全新安装端到端（假 hou + 真 PySide6，不需要 license） |
 | `tools/make_icon.py` | 生成清单缩略图 |
 | `manifest.json` / `shelves.json` | **自动生成，不要手改** |
 | `dist/` | 打包产物，旧版本 zip 不要删（能回滚） |
@@ -56,5 +58,27 @@ curl -sS https://houdini-toolkit.pages.dev/manifest.json   # 3. 1~2 分钟后验
    `core` 只发 `*.shelf` + `python3.11libs` + `presets`，**不发 `toolbar/` 下的包**；
    `My_Tool.shelf` 里的按钮只是"按 HOUDINI_PATH 找包"，包没发 → 别的电脑上点按钮
    直接 `ImportError`。2026-10-20 就漏了 `hip_packer`（工程保存工具）和 `node_preset`。
+8. **界面代码必须走 `qt.py` 兼容层，禁止直接 `import PySide2` / `import PySide6`。**
+   Houdini 20.5 及以下是 PySide2/Qt5，21.0 起是 PySide6/Qt6。`qt.py` 优先用
+   `hutil.Qt`（跟着主程序走），其次 PySide6 / PySide2，并提供 `enum_of()` /
+   `exec_box()` / `event_pos()` 等跨版本取值器。禁用 `Qt.xxx` 直写枚举（Qt6 已
+   收进作用域类）、`exec_()`（Qt6 主推 `exec()`）、`QHeaderView.setResizeMode`
+   （Qt6 只有 `setSectionResizeMode`）、`QFontMetrics.width`（Qt6 是 `horizontalAdvance`）。
+
+## 验证命令
+
+```bash
+python tools/selftest.py                       # 安装器全流程（20.5 语义，假 hou）
+python tools/build.py                          # 先出包，下面两个测试要读 dist/
+
+# Qt 双绑定冒烟（两边都要过）
+E:/Houdini20.5.401/bin/hython.exe tools/test_qt_bindings.py          # PySide2 / Qt5
+E:/Houdini_21/Houdini21.0.440/python311/python.exe tools/test_qt_bindings.py   # PySide6 / Qt6
+
+# H21 全新安装端到端（离线、不需要 license，路径由 H21_HFS 覆盖）
+E:/Houdini_21/Houdini21.0.440/python311/python.exe tools/test_h21_install.py
+```
+
+⚠️ H21 的 hython 需要 21 的 license；只有 20.5 授权时用上面的"纯 Python + 假 hou"跑法。
 
 详细流程与故障处理见（仓库外）：`N:/Houdini_path/houdini_updata/05-日常维护/02-AI协作更新流程.md`

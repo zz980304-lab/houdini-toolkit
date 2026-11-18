@@ -32,7 +32,10 @@ SHELF_TEMPLATE = """<?xml version="1.0" encoding="ISO-8859-1"?>
 
   <tool name="mytoolkit_installer" label="安装 / 更新工具集" icon="MISC_python">
     <helpText><![CDATA[从云端（Cloudflare Pages）拉取 MyToolkit 最新版本。
-首次使用会安装全部默认模块；之后每次点击会提示是否有更新。]]></helpText>
+首次使用会安装全部默认模块；之后每次点击会提示是否有更新。
+
+Houdini 20.5 / 21.0 及以上通用：界面层会自动适配 PySide2(Qt5) 与
+PySide6(Qt6)，装到哪个版本就用哪个版本的 Qt，不需要另外装一份。]]></helpText>
     <script scriptType="python"><![CDATA[
 {code}
 

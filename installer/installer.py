@@ -15,7 +15,9 @@ tools/make_shelf.py 会把这个文件的全文内嵌进 bootstrap.shelf。
 import hashlib
 import json
 import os
+import re
 import shutil
+import sys
 import tempfile
 import time
 import urllib.request
@@ -52,6 +54,43 @@ def pref_dir():
 
 def toolkit_dir():
     return os.path.join(pref_dir(), TOOLKIT_DIRNAME)
+
+
+PY_LIBS_RE = re.compile(r"^python(\d)(\d+)libs$")
+
+
+def python_libs_name():
+    """当前 Houdini 认的 Python 模块目录名，形如 python3.11libs。"""
+    return "python%d%dlibs" % sys.version_info[:2]
+
+
+def ensure_python_libs(root=None):
+    """把 pythonXYlibs 复制一份，改成当前 Houdini 的 Python 版本名。
+
+    代码统一按 python3.11libs 命名（20.5 与 21.0 都是 Python 3.11）。
+    哪天 Houdini 换到 3.12 / 3.13，HOUDINI_PATH 只会去找 python3.12libs，
+    找不到就等于 netbox_bundles / uiready 这些模块凭空消失 —— 而且报错
+    发生在 import 时，很难联想到是"目录名的锅"。这里补一份，几十 KB 的事。
+
+    返回新建的目录名（不用做事就返回空串）。
+    """
+    root = root or toolkit_dir()
+    want = python_libs_name()
+    try:
+        names = sorted(n for n in os.listdir(root) if PY_LIBS_RE.match(n))
+    except OSError:
+        return ""
+    if not names or want in names:
+        return ""
+    dst = os.path.join(root, want)
+    if os.path.isdir(dst):
+        return ""
+    try:
+        shutil.copytree(os.path.join(root, names[0]), dst,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        return want
+    except Exception:                                      # noqa: BLE001
+        return ""
 
 
 def human(n):
@@ -447,6 +486,12 @@ def install_from(tmp_dir, module_files, installed, manifest, wanted_ids):
                 shutil.copy2(os.path.join(src_tb, fn), os.path.join(dst_tb, fn))
                 copied_shelves.append(fn)
 
+    # ---- Python 模块目录：按当前 Houdini 的 Python 版本补齐
+    made_libs = ensure_python_libs(cur)
+    if made_libs:
+        status("MyToolkit：已为 Python %d.%d 补建 %s"
+               % (sys.version_info[0], sys.version_info[1], made_libs))
+
     # ---- 本地版本记录
     # 种子用两边记录的最大值：把预设库更新器记的较新版本也吸收进来，
     # 两边从此对齐（这正是"更新完又提示更新"的根治点）
@@ -464,6 +509,7 @@ def install_from(tmp_dir, module_files, installed, manifest, wanted_ids):
         # 绝不能把 bootstrap.shelf 自己删掉（删了就没法一键装回来了）
         "shelves": sorted(set(prev) | set(copied_shelves)),
     })
+    return {"python_libs": made_libs}
 
 
 def reload_shelves():
@@ -598,8 +644,9 @@ def _main():
         module_files.setdefault(mod["id"], []).append(os.path.join(tmp_dir, name))
 
     status("MyToolkit：正在安装…")
+    info = {}
     try:
-        install_from(tmp_dir, module_files, installed, manifest, wanted)
+        info = install_from(tmp_dir, module_files, installed, manifest, wanted) or {}
     except Exception as e:
         _msg("安装失败：\n\n%s\n\n旧版本仍在（备份在 .mytoolkit_backup）" % e, buttons=("关闭",))
         return
@@ -607,11 +654,20 @@ def _main():
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
     hot = reload_shelves()
+    try:
+        houdini_version = _hou().applicationVersionString()
+    except Exception:                                      # noqa: BLE001
+        houdini_version = "?"
     tip = "" if hot else "\n\n工具架可能需要重启 Houdini 才会出现。"
-    _msg("安装完成\n\n版本：%s\n下载：%s\n位置：%s\n\n"
+    extra = ""
+    if info.get("python_libs"):
+        extra = ("\n已按当前 Python %d.%d 补建 %s（这样换 Houdini 版本也不会丢模块）。"
+                 % (sys.version_info[0], sys.version_info[1], info["python_libs"]))
+    _msg("安装完成\n\nHoudini：%s\n版本：%s\n下载：%s\n位置：%s%s\n\n"
          "包路径已在 packages/mytoolkit.json 中注册，"
          "OTL / Python / dll 会在下次启动 Houdini 时生效。%s"
-         % (manifest.get("version"), human(got), toolkit_dir(), tip),
+         % (houdini_version, manifest.get("version"), human(got),
+            toolkit_dir(), extra, tip),
          buttons=("好",))
     status("MyToolkit：已更新到 v%s" % manifest.get("version"))
 

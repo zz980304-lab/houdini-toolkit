@@ -7,7 +7,7 @@
         "file": "shelves.json",
         "name": "阿龙工具",
         "author": "阿龙",
-        "description": "一键安装 / 更新的 Houdini 工具集。下载后工具架里会出现「阿龙工具」，点按钮即可装齐工具架、Python 模块与预设，之后每次点击自动检查更新。",
+        "description": "一键安装 / 更新的 Houdini 工具集。下载后工具架里会出现「阿龙工具」，点按钮即可装齐工具架、Python 模块与预设，之后每次点击自动检查更新。\n\nHoudini 20.5 / 21.0 及以上通用：界面会自动适配 PySide2(Qt5) 与 PySide6(Qt6)，同一个入口装到哪个版本就用哪个。",
         "base_url": "https://zz980304-lab.github.io/houdini-toolkit",
         "_base_url_note": "Download Shelf 下载文件走的是 urllib，UA 为 Python-urllib/3.11，Cloudflare Pages 会直接返回 403。GitHub Pages 不拦，所以清单里的 fileURL / thumbnailURL 一律指向 github.io。（清单本身是 requests 拉的，pages.dev 也能给。）",
         "thumbnail": "icon.png",
